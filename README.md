@@ -4,19 +4,34 @@ A macOS app for matching MKV TV episodes to metadata and subtitles.
 
 ## Requirements
 
-The app relies on external command line tools for some operations. Install these before running:
+The app relies on external command line tools for some operations. You can either bundle them with the app (preferred for zero-setup users) or install them locally.
 
-- `ffmpeg`
+Tools:
+- `ffmpeg` (includes `ffprobe`)
 - `mediainfo`
 - `seconv` (SubtitleEdit CLI, used for OCR of PGS subtitles)
 
-### Install with Homebrew
+### Bundle tools in the app (recommended)
+
+Place the tools under these paths in the repo before building:
+- `tools/ffmpeg/ffmpeg`
+- `tools/ffmpeg/ffprobe`
+- `tools/mediainfo/mediainfo`
+- `tools/seconv/seconv`
+
+If a tool has dependent `.dylib` files, place them under:
+- `tools/ffmpeg/lib/`
+- `tools/mediainfo/lib/`
+
+When present at build time, the app bundles them into `Contents/Resources/Tools/` and prefers the bundled copies at runtime.
+
+### Install with Homebrew (dev only)
 
 ```bash
 brew install ffmpeg mediainfo
 ```
 
-### Install with Brewfile
+### Install with Brewfile (dev only)
 
 ```bash
 brew bundle
@@ -32,7 +47,7 @@ brew bundle
 
 ## seconv (SubtitleEdit CLI)
 
-`seconv` is used to OCR PGS subtitles. The `tools/seconv/` folder is **ignored by git** so each user can provide it locally for development. If `tools/seconv/seconv` exists at build time, the app bundles it into the app resources automatically.
+`seconv` is used to OCR PGS subtitles. If `tools/seconv/seconv` exists at build time, the app bundles it into the app resources automatically.
 
 The app will look for `seconv` in this order:
 

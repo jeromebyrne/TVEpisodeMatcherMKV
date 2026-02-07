@@ -51,3 +51,9 @@ fastlane/test_output
 
 # Local tools
 /tools/seconv/
+!/tools/seconv/seconv
+
+/tools/ffmpeg/
+!/tools/ffmpeg/**
+/tools/mediainfo/
+!/tools/mediainfo/**

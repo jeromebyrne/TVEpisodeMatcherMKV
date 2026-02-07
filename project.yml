@@ -23,14 +23,38 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
     postBuildScripts:
-      - name: Bundle seconv
+      - name: Bundle tools
         script: |
-          if [ -f "${SRCROOT}/tools/seconv/seconv" ]; then
-            DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Tools"
-            mkdir -p "${DEST}"
-            cp "${SRCROOT}/tools/seconv/seconv" "${DEST}/seconv"
-            chmod +x "${DEST}/seconv"
-            if [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
-              /usr/bin/codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" --timestamp=none "${DEST}/seconv" >/dev/null 2>&1 || true
+          set -e
+          TOOLS_SRC="${SRCROOT}/tools"
+          DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Tools"
+
+          copy_tool_dir() {
+            local name="$1"
+            local src="${TOOLS_SRC}/${name}"
+            local dst="${DEST}/${name}"
+            if [ -d "${src}" ]; then
+              mkdir -p "${dst}"
+              /bin/cp -R "${src}/." "${dst}"
             fi
+          }
+
+          mkdir -p "${DEST}"
+          copy_tool_dir seconv
+          copy_tool_dir ffmpeg
+          copy_tool_dir mediainfo
+
+          for bin in             "${DEST}/seconv/seconv"             "${DEST}/ffmpeg/ffmpeg"             "${DEST}/ffmpeg/ffprobe"             "${DEST}/mediainfo/mediainfo"; do
+            if [ -f "${bin}" ]; then
+              chmod +x "${bin}"
+              if [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+                /usr/bin/codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" --timestamp=none "${bin}" >/dev/null 2>&1 || true
+              fi
+            fi
+          done
+
+          if [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+            find "${DEST}" -type f \( -name "*.dylib" -o -perm -111 \) -print0 | while IFS= read -r -d '' file; do
+              /usr/bin/codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" --timestamp=none "${file}" >/dev/null 2>&1 || true
+            done
           fi

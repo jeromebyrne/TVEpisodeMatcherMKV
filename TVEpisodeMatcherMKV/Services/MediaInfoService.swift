@@ -12,6 +12,7 @@ enum MediaInfoService {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffprobePath)
+        applyBundledLibraryPathIfNeeded(to: process, toolDirName: "ffmpeg")
         process.arguments = [
             "-v", "error",
             "-show_entries", "format=duration",
@@ -42,6 +43,9 @@ enum MediaInfoService {
     }
 
     private static func resolveFFprobePath() -> String? {
+        if let bundled = resolveBundledToolBinary(toolDirName: "ffmpeg", binaryName: "ffprobe") {
+            return bundled
+        }
         let candidates = [
             "/opt/homebrew/bin/ffprobe",
             "/usr/local/bin/ffprobe",
@@ -51,6 +55,33 @@ enum MediaInfoService {
             return path
         }
         return nil
+    }
+
+    private static func resolveBundledToolBinary(toolDirName: String, binaryName: String) -> String? {
+        guard let resourceURL = Bundle.main.resourceURL else { return nil }
+        let candidate = resourceURL
+            .appendingPathComponent("Tools")
+            .appendingPathComponent(toolDirName)
+            .appendingPathComponent(binaryName)
+            .path
+        return FileManager.default.isExecutableFile(atPath: candidate) ? candidate : nil
+    }
+
+    private static func applyBundledLibraryPathIfNeeded(to process: Process, toolDirName: String) {
+        guard let resourceURL = Bundle.main.resourceURL else { return }
+        let libDir = resourceURL
+            .appendingPathComponent("Tools")
+            .appendingPathComponent(toolDirName)
+            .appendingPathComponent("lib")
+        let libPath = libDir.path
+        guard FileManager.default.fileExists(atPath: libPath) else { return }
+
+        var env = ProcessInfo.processInfo.environment
+        let existing = env["DYLD_LIBRARY_PATH"] ?? ""
+        env["DYLD_LIBRARY_PATH"] = existing.isEmpty ? libPath : "\(libPath):\(existing)"
+        let fallback = env["DYLD_FALLBACK_LIBRARY_PATH"] ?? ""
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = fallback.isEmpty ? libPath : "\(libPath):\(fallback)"
+        process.environment = env
     }
 }
 

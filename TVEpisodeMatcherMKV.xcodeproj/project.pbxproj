@@ -140,7 +140,7 @@
 			buildConfigurationList = A2EA1BEDA932789F6F0E9820 /* Build configuration list for PBXNativeTarget "TVEpisodeMatcherMKV" */;
 			buildPhases = (
 				84937F4358896E524C497702 /* Sources */,
-				E8E7C13906210E94D925A0BD /* Bundle seconv */,
+				83A3C8F6FC2E1237AFEA956F /* Bundle tools */,
 			);
 			buildRules = (
 			);
@@ -188,7 +188,7 @@
 /* End PBXProject section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		E8E7C13906210E94D925A0BD /* Bundle seconv */ = {
+		83A3C8F6FC2E1237AFEA956F /* Bundle tools */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -197,14 +197,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Bundle seconv";
+			name = "Bundle tools";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ -f \"${SRCROOT}/tools/seconv/seconv\" ]; then\n  DEST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Tools\"\n  mkdir -p \"${DEST}\"\n  cp \"${SRCROOT}/tools/seconv/seconv\" \"${DEST}/seconv\"\n  chmod +x \"${DEST}/seconv\"\n  if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${DEST}/seconv\" >/dev/null 2>&1 || true\n  fi\nfi\n";
+			shellScript = "set -e\nTOOLS_SRC=\"${SRCROOT}/tools\"\nDEST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Tools\"\n\ncopy_tool_dir() {\n  local name=\"$1\"\n  local src=\"${TOOLS_SRC}/${name}\"\n  local dst=\"${DEST}/${name}\"\n  if [ -d \"${src}\" ]; then\n    mkdir -p \"${dst}\"\n    /bin/cp -R \"${src}/.\" \"${dst}\"\n  fi\n}\n\nmkdir -p \"${DEST}\"\ncopy_tool_dir seconv\ncopy_tool_dir ffmpeg\ncopy_tool_dir mediainfo\n\nfor bin in             \"${DEST}/seconv/seconv\"             \"${DEST}/ffmpeg/ffmpeg\"             \"${DEST}/ffmpeg/ffprobe\"             \"${DEST}/mediainfo/mediainfo\"; do\n  if [ -f \"${bin}\" ]; then\n    chmod +x \"${bin}\"\n    if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n      /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${bin}\" >/dev/null 2>&1 || true\n    fi\n  fi\ndone\n\nif [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  find \"${DEST}\" -type f \\( -name \"*.dylib\" -o -perm -111 \\) -print0 | while IFS= read -r -d '' file; do\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${file}\" >/dev/null 2>&1 || true\n  done\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

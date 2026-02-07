@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcworkspace
+!TVEpisodeMatcherMKV.xcodeproj/project.xcworkspace/
+xcuserdata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+
+# SwiftPM
+.swiftpm/
+.build/
+Package.resolved
+
+# Caches
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Local environment / secrets
+.env
+.env.*
+*.env
+*.local
+*.secrets
+*.secret
+*.credentials
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Local tools
+/tools/seconv/

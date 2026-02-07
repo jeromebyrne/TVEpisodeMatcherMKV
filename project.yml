@@ -1,0 +1,24 @@
+name: TVEpisodeMatcherMKV
+options:
+  bundleIdPrefix: com.example
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    DEVELOPMENT_TEAM: ""
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+targets:
+  TVEpisodeMatcherMKV:
+    type: application
+    platform: macOS
+    sources:
+      - TVEpisodeMatcherMKV
+    info:
+      path: TVEpisodeMatcherMKV/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.TVEpisodeMatcherMKV
+        INFOPLIST_FILE: TVEpisodeMatcherMKV/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0

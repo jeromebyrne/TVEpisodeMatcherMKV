@@ -87,6 +87,14 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             files = loadMKVFiles(in: URL(fileURLWithPath: savedFolder))
         }
         if subtitleEditCliPath.isEmpty {
+            if let resourceURL = Bundle.main.resourceURL {
+                let candidate = resourceURL.appendingPathComponent("Tools/seconv").path
+                if FileManager.default.fileExists(atPath: candidate) {
+                    subtitleEditCliPath = candidate
+                }
+            }
+        }
+        if subtitleEditCliPath.isEmpty {
             let candidate = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("tools/seconv").path
             if FileManager.default.fileExists(atPath: candidate) {

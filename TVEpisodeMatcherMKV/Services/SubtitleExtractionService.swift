@@ -166,9 +166,15 @@ enum SubtitleExtractionService {
             if let resolved = resolveSeconvBinary(from: cwdCandidate) {
                 return resolved
             }
+            if let bundleResolved = resolveSeconvInBundleResources(relativePath: preferred) {
+                return bundleResolved
+            }
             if let bundleResolved = resolveSeconvRelativeToBundle(relativePath: preferred) {
                 return bundleResolved
             }
+        }
+        if let bundleResolved = resolveSeconvInBundleResources(relativePath: "Tools/seconv") {
+            return bundleResolved
         }
         if let envPath = ProcessInfo.processInfo.environment["TVEPISODEFINDER_SECONV"] {
             let resolved = resolveSeconvBinary(from: envPath)
@@ -198,6 +204,9 @@ enum SubtitleExtractionService {
             if let resolved = resolveSeconvBinary(from: path) {
                 return resolved
             }
+        }
+        if let bundleResolved = resolveSeconvInBundleResources(relativePath: "Tools/seconv") {
+            return bundleResolved
         }
         if let bundleResolved = resolveSeconvRelativeToBundle(relativePath: "tools/seconv") {
             return bundleResolved
@@ -229,6 +238,12 @@ enum SubtitleExtractionService {
             current.deleteLastPathComponent()
         }
         return nil
+    }
+
+    private static func resolveSeconvInBundleResources(relativePath: String) -> String? {
+        guard let resourceURL = Bundle.main.resourceURL else { return nil }
+        let candidate = resourceURL.appendingPathComponent(relativePath).path
+        return resolveSeconvBinary(from: candidate)
     }
 
     private static func extractPgsWithOcr(fileURL: URL, streamIndex: Int, ffmpegPath: String, seconvPath: String) -> SubtitleExtractionResult {

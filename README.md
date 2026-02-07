@@ -32,11 +32,12 @@ brew bundle
 
 ## seconv (SubtitleEdit CLI)
 
-`seconv` is used to OCR PGS subtitles. The `tools/seconv/` folder is **ignored by git** so each user must provide it locally.
+`seconv` is used to OCR PGS subtitles. The `tools/seconv/` folder is **ignored by git** so each user can provide it locally for development. If `tools/seconv/seconv` exists at build time, the app bundles it into the app resources automatically.
 
 The app will look for `seconv` in this order:
 
 - A path provided in the app (SubtitleEdit CLI path)
+- A bundled copy at `Contents/Resources/Tools/seconv`
 - `TVEPISODEFINDER_SECONV` environment variable
 - `tools/seconv` relative to the current working directory
 - Standard paths: `/opt/homebrew/bin/seconv`, `/usr/local/bin/seconv`, `/usr/bin/seconv`

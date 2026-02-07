@@ -1,6 +1,8 @@
 # TVEpisodeMatcherMKV
 
-A macOS app for matching MKV TV episodes to metadata and subtitles.
+A macOS app that helps you correctly tag MKV TV episodes by matching them
+against online metadata and subtitles, including OCR support for PGS
+subtitles when needed.
 
 ## Requirements
 

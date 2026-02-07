@@ -53,7 +53,5 @@ fastlane/test_output
 /tools/seconv/
 !/tools/seconv/seconv
 
-/tools/ffmpeg/
 !/tools/ffmpeg/**
-/tools/mediainfo/
 !/tools/mediainfo/**

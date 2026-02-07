@@ -8,7 +8,6 @@ The app relies on external command line tools for some operations. You can eithe
 
 Tools:
 - `ffmpeg` (includes `ffprobe`)
-- `mediainfo`
 - `seconv` (SubtitleEdit CLI, used for OCR of PGS subtitles)
 
 ### Bundle tools in the app (recommended)
@@ -16,19 +15,17 @@ Tools:
 Place the tools under these paths in the repo before building:
 - `tools/ffmpeg/ffmpeg`
 - `tools/ffmpeg/ffprobe`
-- `tools/mediainfo/mediainfo`
 - `tools/seconv/seconv`
 
 If a tool has dependent `.dylib` files, place them under:
 - `tools/ffmpeg/lib/`
-- `tools/mediainfo/lib/`
 
 When present at build time, the app bundles them into `Contents/Resources/Tools/` and prefers the bundled copies at runtime.
 
 ### Install with Homebrew (dev only)
 
 ```bash
-brew install ffmpeg mediainfo
+brew install ffmpeg
 ```
 
 ### Install with Brewfile (dev only)

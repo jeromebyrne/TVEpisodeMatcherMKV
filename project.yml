@@ -34,6 +34,9 @@ targets:
             local src="${TOOLS_SRC}/${name}"
             local dst="${DEST}/${name}"
             if [ -d "${src}" ]; then
+              if [ -e "${dst}" ] && [ ! -d "${dst}" ]; then
+                rm -f "${dst}"
+              fi
               mkdir -p "${dst}"
               /bin/cp -R "${src}/." "${dst}"
             fi

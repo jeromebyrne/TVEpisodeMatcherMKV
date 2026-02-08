@@ -74,7 +74,8 @@ struct ContentView: View {
                         }
 
                     HStack(spacing: 12) {
-                        TextField("SubtitleEdit CLI path (required)", text: $viewModel.subtitleEditCliPath)
+                        Text("SubtitleEdit CLI")
+                        TextField("Path to seconv (required)", text: $viewModel.subtitleEditCliPath)
                             .textFieldStyle(.roundedBorder)
                         Button("Browse") {
                             viewModel.selectSubtitleEditPath()

@@ -8,7 +8,7 @@ enum DurationInfoService {
     private static func ffprobeDuration(for url: URL) -> DurationInfo {
         let candidates = resolveFFprobeCandidates()
         if candidates.isEmpty {
-            return DurationInfo(duration: nil, source: "ffprobe", error: "ffprobe not found in common paths")
+            return DurationInfo(duration: nil, source: "ffprobe", error: "ffprobe not found in common paths (run tools/install_deps.sh)")
         }
 
         var lastError: String? = nil

@@ -3,10 +3,10 @@ import Foundation
 enum SubtitleExtractionService {
     static func extractEnglishSubtitleSample(from url: URL, subtitleEditPath: String?) -> SubtitleExtractionResult {
         guard let ffprobePath = resolveFFprobePath() else {
-            return SubtitleExtractionResult(sample: nil, error: "ffprobe not found", codec: nil)
+            return SubtitleExtractionResult(sample: nil, error: "ffprobe not found (run tools/install_deps.sh)", codec: nil)
         }
         guard let ffmpegPath = resolveFFmpegPath() else {
-            return SubtitleExtractionResult(sample: nil, error: "ffmpeg not found", codec: nil)
+            return SubtitleExtractionResult(sample: nil, error: "ffmpeg not found (run tools/install_deps.sh)", codec: nil)
         }
 
         let (streamInfo, streamError) = subtitleStreamInfo(fileURL: url, ffprobePath: ffprobePath)
@@ -18,8 +18,9 @@ enum SubtitleExtractionService {
             if codec == "hdmv_pgs_subtitle" {
                 guard let seconvPath = resolveSubtitleEditPath(preferred: subtitleEditPath) else {
                     let details = "no seconv at preferred='\(subtitleEditPath ?? "")' cwd='\(FileManager.default.currentDirectoryPath)'"
-                    return SubtitleExtractionResult(sample: nil, error: "PGS subtitles require OCR (SubtitleEdit CLI not found: \(details))", codec: codec)
+                    return SubtitleExtractionResult(sample: nil, error: "PGS subtitles require OCR (SubtitleEdit CLI not found: \(details)). Run tools/install_deps.sh", codec: codec)
                 }
+                NSLog("SubtitleEdit CLI resolved path: %@", seconvPath)
                 return extractPgsWithOcr(
                     fileURL: url,
                     streamIndex: streamInfo.index,

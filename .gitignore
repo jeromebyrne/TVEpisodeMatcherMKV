@@ -49,9 +49,9 @@ fastlane/test_output
 .vscode/
 .idea/
 
-# Local tools
+# Local tools (installed by script)
+/tools/ffmpeg/
 /tools/seconv/
-!/tools/seconv/seconv
-
-!/tools/ffmpeg/**
-!/tools/mediainfo/**
+!/tools/ffmpeg/.gitkeep
+!/tools/seconv/.gitkeep
+/tools/uninstall_deps.sh

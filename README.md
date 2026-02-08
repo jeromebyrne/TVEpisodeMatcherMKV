@@ -2,7 +2,13 @@
 
 A macOS app that helps you correctly tag MKV TV episodes by matching them
 against online metadata and subtitles, including OCR support for PGS
-subtitles when needed.
+subtitles when needed. It scans MKV files, parses filenames for hints,
+fetches season/episode metadata from TMDB, and then uses a combination of
+subtitle text similarity and timing/duration checks (via `ffprobe`) to
+map each file to the most likely episode. For embedded PGS subtitles, it
+invokes SubtitleEdit CLI (`seconv`) to OCR them into text before scoring.
+If embedded subtitles are missing or insufficient, it can compare against
+downloaded subtitle samples from OpenSubtitles.
 
 ## Requirements
 

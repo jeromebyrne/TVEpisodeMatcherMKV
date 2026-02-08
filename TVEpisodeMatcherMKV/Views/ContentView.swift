@@ -215,9 +215,19 @@ struct ContentView: View {
                         }
 
                         if !viewModel.statusMessage.isEmpty {
-                            Text(viewModel.statusMessage)
-                                .font(.caption)
-                                .foregroundStyle(viewModel.statusIsError ? .red : .secondary)
+                            if viewModel.statusMessage == "No matches found." {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "xmark.octagon.fill")
+                                        .foregroundStyle(.red)
+                                    Text(viewModel.statusMessage)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            } else {
+                                Text(viewModel.statusMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(viewModel.statusIsError ? .red : .secondary)
+                            }
                         }
                         if viewModel.lastRangeCount > 0 {
                             HStack(spacing: 8) {

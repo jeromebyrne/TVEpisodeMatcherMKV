@@ -61,9 +61,9 @@ If dependencies are missing at runtime, error messages will suggest running `too
 1. Run `tools/install_deps.sh` to populate `tools/`.
 2. Open `TVEpisodeMatcherMKV.xcodeproj` in Xcode.
 3. Build and run the `TVEpisodeMatcherMKV` target.
-4. Configure API credentials in the app UI:
-   - TMDB Access Token
-   - OpenSubtitles API Key, Username, Password
+4. Configure API credentials in the app UI (free accounts required):
+   - TMDB Access Token (create a free TMDB account to obtain an API token)
+   - OpenSubtitles API Key, Username, Password (create a free OpenSubtitles account)
 
 ## seconv (SubtitleEdit CLI)
 

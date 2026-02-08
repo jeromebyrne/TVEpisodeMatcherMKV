@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1D7D7E5CB0124355A2E3F5DD /* MediaInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26B4BA361B56D229B434E080 /* MediaInfoService.swift */; };
+		1D7D7E5CB0124355A2E3F5DD /* DurationInfoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26B4BA361B56D229B434E080 /* DurationInfoService.swift */; };
 		2AFA293CA667718EC35E9765 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467097AFD58B18DA0268936E /* KeychainService.swift */; };
 		41C5257C44A74AA8F704056C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1322F2D4B052A994DED58B8 /* ContentView.swift */; };
 		459D201721A25305DB1F01A3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C473087F4D08EE51A65AFA /* Models.swift */; };
@@ -27,7 +27,7 @@
 /* Begin PBXFileReference section */
 		02B73F3684CBB00BBCBC2698 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		19789D5F0D87DC9B438FF1ED /* OpenSubtitlesClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSubtitlesClient.swift; sourceTree = "<group>"; };
-		26B4BA361B56D229B434E080 /* MediaInfoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaInfoService.swift; sourceTree = "<group>"; };
+		26B4BA361B56D229B434E080 /* DurationInfoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurationInfoService.swift; sourceTree = "<group>"; };
 		2A1258439E71674B22BC1F7D /* AssignmentSolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentSolver.swift; sourceTree = "<group>"; };
 		2FCC291415A74A63B2FB805A /* String+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Tokens.swift"; sourceTree = "<group>"; };
 		459AEAB825225B3E3311BDE2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -116,7 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				467097AFD58B18DA0268936E /* KeychainService.swift */,
-				26B4BA361B56D229B434E080 /* MediaInfoService.swift */,
+				26B4BA361B56D229B434E080 /* DurationInfoService.swift */,
 				19789D5F0D87DC9B438FF1ED /* OpenSubtitlesClient.swift */,
 				74FC981850B22A5062A9A8DA /* SubtitleExtractionService.swift */,
 				6037232B22DE435269FC87B0 /* TMDBClient.swift */,
@@ -204,7 +204,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nTOOLS_SRC=\"${SRCROOT}/tools\"\nDEST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Tools\"\n\ncopy_tool_dir() {\n  local name=\"$1\"\n  local src=\"${TOOLS_SRC}/${name}\"\n  local dst=\"${DEST}/${name}\"\n  if [ -d \"${src}\" ]; then\n    if [ -e \"${dst}\" ] && [ ! -d \"${dst}\" ]; then\n      rm -f \"${dst}\"\n    fi\n    mkdir -p \"${dst}\"\n    /bin/cp -R \"${src}/.\" \"${dst}\"\n  fi\n}\n\nmkdir -p \"${DEST}\"\ncopy_tool_dir seconv\ncopy_tool_dir ffmpeg\ncopy_tool_dir mediainfo\n\nfor bin in             \"${DEST}/seconv/seconv\"             \"${DEST}/ffmpeg/ffmpeg\"             \"${DEST}/ffmpeg/ffprobe\"             \"${DEST}/mediainfo/mediainfo\"; do\n  if [ -f \"${bin}\" ]; then\n    chmod +x \"${bin}\"\n    if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n      /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${bin}\" >/dev/null 2>&1 || true\n    fi\n  fi\ndone\n\nif [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  find \"${DEST}\" -type f \\( -name \"*.dylib\" -o -perm -111 \\) -print0 | while IFS= read -r -d '' file; do\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${file}\" >/dev/null 2>&1 || true\n  done\nfi\n";
+			shellScript = "set -e\nTOOLS_SRC=\"${SRCROOT}/tools\"\nDEST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Tools\"\n\ncopy_tool_dir() {\n  local name=\"$1\"\n  local src=\"${TOOLS_SRC}/${name}\"\n  local dst=\"${DEST}/${name}\"\n  if [ -d \"${src}\" ]; then\n    if [ -e \"${dst}\" ] && [ ! -d \"${dst}\" ]; then\n      rm -f \"${dst}\"\n    fi\n    mkdir -p \"${dst}\"\n    /bin/cp -R \"${src}/.\" \"${dst}\"\n  fi\n}\n\nmkdir -p \"${DEST}\"\ncopy_tool_dir seconv\ncopy_tool_dir ffmpeg\n\nfor bin in             \"${DEST}/seconv/seconv\"             \"${DEST}/ffmpeg/ffmpeg\"             \"${DEST}/ffmpeg/ffprobe\"             \"\"; do\n  if [ -f \"${bin}\" ]; then\n    chmod +x \"${bin}\"\n    if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n      /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${bin}\" >/dev/null 2>&1 || true\n    fi\n  fi\ndone\n\nif [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  find \"${DEST}\" -type f \\( -name \"*.dylib\" -o -perm -111 \\) -print0 | while IFS= read -r -d '' file; do\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${file}\" >/dev/null 2>&1 || true\n  done\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -218,7 +218,7 @@
 				BA12DC125EA95DB3C46F354F /* Data+Gzip.swift in Sources */,
 				E20342F73ECCFDF85FE3BB1C /* FilenameParser.swift in Sources */,
 				2AFA293CA667718EC35E9765 /* KeychainService.swift in Sources */,
-				1D7D7E5CB0124355A2E3F5DD /* MediaInfoService.swift in Sources */,
+				1D7D7E5CB0124355A2E3F5DD /* DurationInfoService.swift in Sources */,
 				459D201721A25305DB1F01A3 /* Models.swift in Sources */,
 				688D33B54A988C14A14A189E /* OpenSubtitlesClient.swift in Sources */,
 				F93C5151D7C60ED7E3BFF50D /* SettingsStore.swift in Sources */,

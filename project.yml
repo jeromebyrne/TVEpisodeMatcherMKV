@@ -45,9 +45,9 @@ targets:
           mkdir -p "${DEST}"
           copy_tool_dir seconv
           copy_tool_dir ffmpeg
-          copy_tool_dir mediainfo
 
-          for bin in             "${DEST}/seconv/seconv"             "${DEST}/ffmpeg/ffmpeg"             "${DEST}/ffmpeg/ffprobe"             "${DEST}/mediainfo/mediainfo"; do
+
+          for bin in             "${DEST}/seconv/seconv"             "${DEST}/ffmpeg/ffmpeg"             "${DEST}/ffmpeg/ffprobe"; do
             if [ -f "${bin}" ]; then
               chmod +x "${bin}"
               if [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then

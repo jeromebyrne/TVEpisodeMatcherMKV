@@ -21,6 +21,9 @@ If a tool has dependent `.dylib` files, place them under:
 - `tools/ffmpeg/lib/`
 
 When present at build time, the app bundles them into `Contents/Resources/Tools/` and prefers the bundled copies at runtime.
+If bundled `ffmpeg/ffprobe` rely on dynamic libraries, those `.dylib` files must be included under `tools/ffmpeg/lib/`
+so the app can run the bundled binaries. If a bundled `ffprobe` fails to launch, the app will fall back to a system
+`ffprobe` if available.
 
 ### Install with Homebrew (dev only)
 

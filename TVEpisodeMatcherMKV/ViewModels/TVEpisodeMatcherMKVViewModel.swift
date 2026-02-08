@@ -628,7 +628,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         await withTaskGroup(of: (MKVFile, DurationInfo).self) { group in
             for file in files {
                 group.addTask {
-                    let info = await MediaInfoService.durationInfo(for: file.url)
+                    let info = await DurationInfoService.durationInfo(for: file.url)
                     return (file, info)
                 }
             }

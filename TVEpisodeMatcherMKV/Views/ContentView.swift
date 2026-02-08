@@ -146,14 +146,14 @@ struct ContentView: View {
                                     }
                                 }
                             Text("Season")
-                            TextField("2", text: $viewModel.seasonInput)
+                            TextField("1", text: $viewModel.seasonInput)
                                 .frame(width: 60)
                                 .textFieldStyle(.roundedBorder)
                         }
 
                     HStack(spacing: 12) {
                         Text("Episode Range")
-                        TextField("13-24", text: $viewModel.episodeRangeInput)
+                        TextField("1-10", text: $viewModel.episodeRangeInput)
                             .frame(width: 100)
                             .textFieldStyle(.roundedBorder)
                         Button("Match") {

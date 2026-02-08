@@ -74,16 +74,6 @@ struct ContentView: View {
                         }
 
                     HStack(spacing: 12) {
-                        Text("SubtitleEdit CLI")
-                        TextField("Path to seconv (required)", text: $viewModel.subtitleEditCliPath)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Browse") {
-                            viewModel.selectSubtitleEditPath()
-                        }
-                        .buttonStyle(PrimaryActionButtonStyle())
-                        Spacer()
-                    }
-                    HStack(spacing: 12) {
                         Text("Episode Range")
                         TextField("13-24", text: $viewModel.episodeRangeInput)
                             .frame(width: 100)

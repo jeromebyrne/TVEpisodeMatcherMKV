@@ -21,9 +21,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
     @Published var episodeRangeInput: String = "" {
         didSet { SettingsStore.set(episodeRangeInput, for: SettingsKey.lastEpisodeRange) }
     }
-    @Published var subtitleEditCliPath: String = "" {
-        didSet { SettingsStore.set(subtitleEditCliPath, for: SettingsKey.subtitleEditCliPath) }
-    }
     @Published var allRangeMatched: Bool = false
     @Published var lastRangeCount: Int = 0
     @Published var lastMatchedCount: Int = 0
@@ -57,7 +54,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         let openSubtitlesUsername: String
         let openSubtitlesPassword: String
         let files: [MKVFile]
-        let subtitleEditCliPath: String
     }
 
     private struct SubtitleMatchOutcome: Sendable {
@@ -80,26 +76,10 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         showName = SettingsStore.get(SettingsKey.lastShowName)
         seasonInput = SettingsStore.get(SettingsKey.lastSeasonInput)
         episodeRangeInput = SettingsStore.get(SettingsKey.lastEpisodeRange)
-        subtitleEditCliPath = SettingsStore.get(SettingsKey.subtitleEditCliPath)
         let savedFolder = SettingsStore.get(SettingsKey.lastSelectedFolder)
         if !savedFolder.isEmpty, FileManager.default.fileExists(atPath: savedFolder) {
             selectedFolder = savedFolder
             files = loadMKVFiles(in: URL(fileURLWithPath: savedFolder))
-        }
-        if subtitleEditCliPath.isEmpty {
-            if let resourceURL = Bundle.main.resourceURL {
-                let candidate = resourceURL.appendingPathComponent("Tools/seconv").path
-                if FileManager.default.fileExists(atPath: candidate) {
-                    subtitleEditCliPath = candidate
-                }
-            }
-        }
-        if subtitleEditCliPath.isEmpty {
-            let candidate = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent("tools/seconv").path
-            if FileManager.default.fileExists(atPath: candidate) {
-                subtitleEditCliPath = candidate
-            }
         }
     }
 
@@ -110,7 +90,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
     var canMatchBySubtitles: Bool {
         let trimmedShow = showName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedRange = episodeRangeInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedSubtitlePath = subtitleEditCliPath.trimmingCharacters(in: .whitespacesAndNewlines)
         let seasonValid = Int(seasonInput.trimmingCharacters(in: .whitespacesAndNewlines)) != nil
         let folderSelected = !selectedFolder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && selectedFolder != "No folder selected"
@@ -118,7 +97,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             && seasonValid
             && !trimmedShow.isEmpty
             && !trimmedRange.isEmpty
-            && !trimmedSubtitlePath.isEmpty
     }
 
     func selectFolder() {
@@ -137,18 +115,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         }
     }
 
-    func selectSubtitleEditPath() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Select"
-        panel.message = "Select the SubtitleEdit CLI (seconv) binary or its folder."
-
-        if panel.runModal() == .OK, let url = panel.url {
-            subtitleEditCliPath = url.path
-        }
-    }
 
     func matchForFile(_ file: MKVFile) -> EpisodeMatch? {
         matchesById[file.id]
@@ -211,7 +177,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             openSubtitlesUsername: openSubtitlesUsername,
             openSubtitlesPassword: openSubtitlesPassword,
             files: files,
-            subtitleEditCliPath: subtitleEditCliPath
         )
 
         let outcome = await Task.detached(priority: .userInitiated) {
@@ -267,9 +232,6 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             return failure("Enter an episode range like 13-24.", logMessage: "Invalid episode range '\(input.episodeRangeInput)'")
         }
 
-        guard !input.subtitleEditCliPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return failure("Select the SubtitleEdit CLI path.", logMessage: "SubtitleEdit CLI path missing")
-        }
 
         guard !input.tmdbAccessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return failure("Enter a TMDB access token.", logMessage: "TMDB access token missing")
@@ -325,7 +287,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             if !hasOpenSubtitlesCreds {
                 log(.warning, "OpenSubtitles credentials missing; subtitle matching disabled")
             } else {
-                let fileSamples = Self.extractFileSubtitleSamples(files, subtitleEditCliPath: input.subtitleEditCliPath, log: log)
+                let fileSamples = Self.extractFileSubtitleSamples(files, log: log)
                 if fileSamples.isEmpty {
                     log(.warning, "No embedded English subtitles found; skipping subtitle match")
                 } else {
@@ -648,14 +610,13 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
 
     nonisolated private static func extractFileSubtitleSamples(
         _ files: [MKVFile],
-        subtitleEditCliPath: String,
         log: (LogLevel, String) -> Void
     ) -> [MKVFile: String] {
         var samples: [MKVFile: String] = [:]
         for file in files {
             let result = SubtitleExtractionService.extractEnglishSubtitleSample(
                 from: file.url,
-                subtitleEditPath: subtitleEditCliPath
+                subtitleEditPath: nil
             )
             if let sample = result.sample {
                 samples[file] = sample

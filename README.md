@@ -3,8 +3,13 @@
 A macOS app that helps you correctly tag MKV TV episodes by matching them
 against online metadata and subtitles, including OCR (optical character
 recognition—converting subtitle images into text) for PGS subtitles when
-needed. MKV (Matroska) is a common container format for video files that
-can include multiple audio and subtitle tracks. The app scans MKV files,
+needed. The primary use case is when you rip a TV season from Blu-ray and
+the episode files are obfuscated or out of order. You provide the show
+name and season number, and the app matches each file against TMDB and
+OpenSubtitles to determine the correct episode numbers and names.
+
+MKV (Matroska) is a common container format for video files that can
+include multiple audio and subtitle tracks. The app scans MKV files,
 parses filenames for hints, fetches season/episode metadata from TMDB,
 and then uses a combination of subtitle text similarity and
 timing/duration checks (via `ffprobe`) to map each file to the most likely
@@ -23,8 +28,9 @@ downloaded subtitle samples from OpenSubtitles.
 
 ## Requirements
 
-The app relies on external command line tools for some operations. Use the installer script to fetch tools via Homebrew
-and stage them under `tools/` (macOS arm64 only). The `tools/` directory is gitignored and populated locally.
+The app relies on external command line tools for some operations. The installer script (`tools/install_deps.sh`) is the
+source of truth for setting up these dependencies. It fetches tools via Homebrew and stages them under `tools/` (macOS
+arm64 only). The `tools/` directory is gitignored and populated locally.
 
 Tools:
 - `ffmpeg` (includes `ffprobe`)
@@ -62,8 +68,8 @@ If dependencies are missing at runtime, error messages will suggest running `too
 2. Open `TVEpisodeMatcherMKV.xcodeproj` in Xcode.
 3. Build and run the `TVEpisodeMatcherMKV` target.
 4. Configure API credentials in the app UI (free accounts required):
-   - TMDB Access Token (create a free TMDB account to obtain an API token)
-   - OpenSubtitles API Key, Username, Password (create a free OpenSubtitles account)
+   - TMDB Access Token (create a free TMDB account to obtain an API token). Sign up: `https://www.themoviedb.org/signup`
+   - OpenSubtitles API Key, Username, Password (create a free OpenSubtitles account). Sign up: `https://www.opensubtitles.com/en/signup`
 
 ## seconv (SubtitleEdit CLI)
 
@@ -72,14 +78,10 @@ If dependencies are missing at runtime, error messages will suggest running `too
 
 The app will look for `seconv` in this order:
 
-- A path provided in the app (SubtitleEdit CLI path)
 - A bundled copy at `Contents/Resources/Tools/seconv`
-- `TVEPISODEFINDER_SECONV` environment variable
 - `tools/seconv` relative to the current working directory
 - Standard paths: `/opt/homebrew/bin/seconv`, `/usr/local/bin/seconv`, `/usr/bin/seconv`
 - A `tools/seconv` folder located near the app bundle
-
-You can point the app at `seconv` by entering either an absolute path or a relative path (e.g. `tools/seconv`).
 
 ## Notes
 

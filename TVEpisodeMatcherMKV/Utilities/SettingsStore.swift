@@ -8,7 +8,6 @@ enum SettingsKey {
     static let lastShowName = "lastShowName"
     static let lastSeasonInput = "lastSeasonInput"
     static let lastEpisodeRange = "lastEpisodeRange"
-    static let subtitleEditCliPath = "subtitleEditCliPath"
     static let lastSelectedFolder = "lastSelectedFolder"
 }
 

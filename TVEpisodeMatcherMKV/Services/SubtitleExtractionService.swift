@@ -185,10 +185,6 @@ enum SubtitleExtractionService {
         if let bundleResolved = resolveSeconvInBundleResources(relativePath: "Tools/seconv") {
             return bundleResolved
         }
-        if let envPath = ProcessInfo.processInfo.environment["TVEPISODEFINDER_SECONV"] {
-            let resolved = resolveSeconvBinary(from: envPath)
-            if let resolved { return resolved }
-        }
         let envRoots = [
             ProcessInfo.processInfo.environment["SRCROOT"],
             ProcessInfo.processInfo.environment["PROJECT_DIR"]

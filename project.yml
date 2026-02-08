@@ -13,6 +13,7 @@ targets:
     platform: macOS
     sources:
       - TVEpisodeMatcherMKV
+      - TVEpisodeMatcherMKV/Assets.xcassets
     info:
       path: TVEpisodeMatcherMKV/Info.plist
     settings:

@@ -62,6 +62,16 @@ If dependencies are missing at runtime, error messages will suggest running `too
 - `seconv` build warnings: the SubtitleEdit CLI build may emit .NET nullability warnings; these are expected.
 - PGS OCR not working: confirm `tools/seconv/seconv` exists, then clean/rebuild so it is bundled into the app.
 
+## Caching Details
+
+The app caches data to reduce repeated network calls and speed up matching:
+
+- TMDB show search results are cached in-memory during a session to avoid repeated lookups while typing.
+- OpenSubtitles downloads are cached on disk per show/season/episode/file so repeated matches don’t re-download the same subtitle.
+- User-entered credentials and last-used inputs (show name, season, range, folder) are stored locally in `UserDefaults`.
+
+If you want a clean slate, clear the app’s `UserDefaults` and delete the cached subtitle files from the app’s cache folder.
+
 ## Setup
 
 1. Run `tools/install_deps.sh` to populate `tools/`.

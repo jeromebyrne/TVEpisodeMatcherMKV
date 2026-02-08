@@ -122,7 +122,7 @@ struct ContentView: View {
                                 viewModel.selectFolder()
                             }
                             .buttonStyle(PrimaryActionButtonStyle())
-                            Text(viewModel.selectedFolder)
+                            Text(displayFolderName(from: viewModel.selectedFolder))
                                 .foregroundStyle(.secondary)
                             Spacer()
                         }
@@ -146,14 +146,14 @@ struct ContentView: View {
                                     }
                                 }
                             Text("Season")
-                            TextField("1", text: $viewModel.seasonInput)
+                            TextField("eg: 1", text: $viewModel.seasonInput)
                                 .frame(width: 60)
                                 .textFieldStyle(.roundedBorder)
                         }
 
                     HStack(spacing: 12) {
                         Text("Episode Range")
-                        TextField("1-10", text: $viewModel.episodeRangeInput)
+                        TextField("eg: 1-10", text: $viewModel.episodeRangeInput)
                             .frame(width: 100)
                             .textFieldStyle(.roundedBorder)
                         Button("Match") {
@@ -391,6 +391,19 @@ struct ContentView: View {
         }
     }
 
+    private func displayFolderName(from path: String) -> String {
+        guard !path.isEmpty, path != "No folder selected" else {
+            return path
+        }
+        let url = URL(fileURLWithPath: path)
+        let name = url.lastPathComponent
+        let parent = url.deletingLastPathComponent().lastPathComponent
+        if parent.isEmpty || parent == "/" {
+            return name
+        }
+        return "\(parent)/\(name)"
+    }
+
     private func colorForLevel(_ level: LogLevel) -> Color {
         switch level {
         case .info:
@@ -401,6 +414,7 @@ struct ContentView: View {
             return .red
         }
     }
+
 }
 
 private struct PrimaryActionButtonStyle: ButtonStyle {

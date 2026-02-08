@@ -188,6 +188,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         fileDurations = outcome.fileDurations
         lastRangeCount = outcome.lastRangeCount
         lastMatchedCount = outcome.lastMatchedCount
+        allRangeMatched = outcome.lastRangeCount > 0 && outcome.lastMatchedCount >= outcome.lastRangeCount
         lastMissingEpisodes = outcome.lastMissingEpisodes
         statusMessage = outcome.statusMessage
         statusIsError = outcome.statusIsError

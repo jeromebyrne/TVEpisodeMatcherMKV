@@ -1,14 +1,25 @@
 # TVEpisodeMatcherMKV
 
 A macOS app that helps you correctly tag MKV TV episodes by matching them
-against online metadata and subtitles, including OCR support for PGS
-subtitles when needed. It scans MKV files, parses filenames for hints,
-fetches season/episode metadata from TMDB, and then uses a combination of
-subtitle text similarity and timing/duration checks (via `ffprobe`) to
-map each file to the most likely episode. For embedded PGS subtitles, it
-invokes SubtitleEdit CLI (`seconv`) to OCR them into text before scoring.
-If embedded subtitles are missing or insufficient, it can compare against
+against online metadata and subtitles, including OCR (optical character
+recognition—converting subtitle images into text) for PGS subtitles when
+needed. MKV (Matroska) is a common container format for video files that
+can include multiple audio and subtitle tracks. The app scans MKV files,
+parses filenames for hints, fetches season/episode metadata from TMDB,
+and then uses a combination of subtitle text similarity and
+timing/duration checks (via `ffprobe`) to map each file to the most likely
+episode. For embedded PGS subtitles (image-based subtitles), it invokes
+SubtitleEdit CLI (`seconv`) to OCR them into text before scoring. If
+embedded subtitles are missing or insufficient, it can compare against
 downloaded subtitle samples from OpenSubtitles.
+
+## Glossary
+
+- MKV (Matroska): A multimedia container format that can hold video, audio, and multiple subtitle tracks.
+- PGS (Presentation Graphic Stream): Image-based subtitles often found on Blu-ray sources.
+- OCR (Optical Character Recognition): Converts subtitle images into selectable text.
+- TMDB: The Movie Database API used for show and episode metadata.
+- OpenSubtitles: Subtitle database used for downloading reference subtitle samples.
 
 ## Requirements
 
@@ -38,14 +49,6 @@ You can also override the source repo/ref:
 When present at build time, the app bundles the tools into `Contents/Resources/Tools/` and prefers the bundled copies at runtime.
 If a bundled `ffprobe` fails to launch, the app will fall back to a system `ffprobe` if available.
 If dependencies are missing at runtime, error messages will suggest running `tools/install_deps.sh`.
-
-### Uninstall tools (dev only)
-
-```bash
-tools/uninstall_deps.sh
-```
-
-This removes repo-local tool installs under `tools/` and uninstalls Homebrew packages (`ffmpeg`, `dotnet`, `git`).
 
 ### Troubleshooting
 

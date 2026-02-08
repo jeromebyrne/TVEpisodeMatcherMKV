@@ -7,31 +7,101 @@ struct ContentView: View {
     @State private var showSearchTask: Task<Void, Never>?
     @State private var hoveredShowSuggestion: TMDBShow?
     @FocusState private var showFieldFocused: Bool
+    @AppStorage("showTMDBToken") private var showTMDBToken: Bool = false
+    @AppStorage("showOpenSubtitlesApiKey") private var showOpenSubtitlesApiKey: Bool = false
+    @AppStorage("showOpenSubtitlesPassword") private var showOpenSubtitlesPassword: Bool = false
+    @AppStorage("showOpenSubtitlesUsername") private var showOpenSubtitlesUsername: Bool = true
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             VStack(spacing: 16) {
                 GroupBox("Authentication") {
                     VStack(spacing: 12) {
-                        HStack(spacing: 12) {
-                            SecureField("TMDB Access Token", text: $viewModel.tmdbAccessToken)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("TMDB Access Token")
+                            HStack(spacing: 12) {
+                                Group {
+                                    if showTMDBToken {
+                                        TextField("Token", text: $viewModel.tmdbAccessToken)
+                                    } else {
+                                        SecureField("Token", text: $viewModel.tmdbAccessToken)
+                                    }
+                                }
                                 .textFieldStyle(.roundedBorder)
-                            Button("Open TMDB API Settings") {
-                                viewModel.openTMDBSettings()
+                                Button {
+                                    showTMDBToken.toggle()
+                                } label: {
+                                    Image(systemName: showTMDBToken ? "eye" : "eye.slash")
+                                }
+                                .buttonStyle(.plain)
+                                Button("Open TMDB API Settings") {
+                                    viewModel.openTMDBSettings()
+                                }
+                                .buttonStyle(PrimaryActionButtonStyle())
                             }
-                            .buttonStyle(PrimaryActionButtonStyle())
-                            SecureField("OpenSubtitles API Key", text: $viewModel.openSubtitlesApiKey)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Open OpenSubtitles API") {
-                                viewModel.openOpenSubtitlesSettings()
-                            }
-                            .buttonStyle(PrimaryActionButtonStyle())
                         }
-                        HStack(spacing: 12) {
-                            TextField("OpenSubtitles Username", text: $viewModel.openSubtitlesUsername)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("OpenSubtitles API Key")
+                            HStack(spacing: 12) {
+                                Group {
+                                    if showOpenSubtitlesApiKey {
+                                        TextField("API key", text: $viewModel.openSubtitlesApiKey)
+                                    } else {
+                                        SecureField("API key", text: $viewModel.openSubtitlesApiKey)
+                                    }
+                                }
                                 .textFieldStyle(.roundedBorder)
-                            SecureField("OpenSubtitles Password", text: $viewModel.openSubtitlesPassword)
-                                .textFieldStyle(.roundedBorder)
+                                Button {
+                                    showOpenSubtitlesApiKey.toggle()
+                                } label: {
+                                    Image(systemName: showOpenSubtitlesApiKey ? "eye" : "eye.slash")
+                                }
+                                .buttonStyle(.plain)
+                                Button("Open OpenSubtitles API") {
+                                    viewModel.openOpenSubtitlesSettings()
+                                }
+                                .buttonStyle(PrimaryActionButtonStyle())
+                            }
+                        }
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("OpenSubtitles Username")
+                                HStack(spacing: 8) {
+                                    Group {
+                                        if showOpenSubtitlesUsername {
+                                            TextField("Username", text: $viewModel.openSubtitlesUsername)
+                                        } else {
+                                            SecureField("Username", text: $viewModel.openSubtitlesUsername)
+                                        }
+                                    }
+                                    .textFieldStyle(.roundedBorder)
+                                    Button {
+                                        showOpenSubtitlesUsername.toggle()
+                                    } label: {
+                                        Image(systemName: showOpenSubtitlesUsername ? "eye" : "eye.slash")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("OpenSubtitles Password")
+                                HStack(spacing: 8) {
+                                    Group {
+                                        if showOpenSubtitlesPassword {
+                                            TextField("Password", text: $viewModel.openSubtitlesPassword)
+                                        } else {
+                                            SecureField("Password", text: $viewModel.openSubtitlesPassword)
+                                        }
+                                    }
+                                    .textFieldStyle(.roundedBorder)
+                                    Button {
+                                        showOpenSubtitlesPassword.toggle()
+                                    } label: {
+                                        Image(systemName: showOpenSubtitlesPassword ? "eye" : "eye.slash")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
                     }
                     .padding(8)

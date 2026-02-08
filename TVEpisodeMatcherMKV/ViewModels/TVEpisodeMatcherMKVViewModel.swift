@@ -18,6 +18,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
     @Published var statusIsError: Bool = false
     @Published var isMatching: Bool = false
     @Published var logs: [LogEntry] = []
+    @Published private(set) var successfulMatchCount: Int = 0
     @Published var episodeRangeInput: String = "" {
         didSet { SettingsStore.set(episodeRangeInput, for: SettingsKey.lastEpisodeRange) }
     }
@@ -192,6 +193,9 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         statusIsError = outcome.statusIsError
         logs.append(contentsOf: outcome.logs)
         isMatching = false
+        if !outcome.statusIsError {
+            successfulMatchCount += 1
+        }
     }
 
     nonisolated private static func runSubtitleMatch(input: SubtitleMatchInput) async -> SubtitleMatchOutcome {

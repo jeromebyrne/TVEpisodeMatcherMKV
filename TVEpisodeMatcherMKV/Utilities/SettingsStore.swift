@@ -5,6 +5,8 @@ enum SettingsKey {
     static let openSubtitlesApiKey = "openSubtitlesApiKey"
     static let openSubtitlesUsername = "openSubtitlesUsername"
     static let openSubtitlesPassword = "openSubtitlesPassword"
+    static let openSubtitlesParentImdbIdOverride = "openSubtitlesParentImdbIdOverride"
+    static let openSubtitlesSeasonOffsetInput = "openSubtitlesSeasonOffsetInput"
     static let lastShowName = "lastShowName"
     static let lastSeasonInput = "lastSeasonInput"
     static let lastEpisodeRange = "lastEpisodeRange"

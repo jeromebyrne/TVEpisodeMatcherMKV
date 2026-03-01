@@ -49,19 +49,42 @@ final class OpenSubtitlesClient {
         }
     }
 
-    func searchSubtitles(parentTmdbId: Int, seasonNumber: Int, episodeNumber: Int, language: String) async throws -> [OpenSubtitlesSubtitleData] {
+    func searchSubtitles(
+        parentTmdbId: Int? = nil,
+        parentImdbId: Int? = nil,
+        imdbAsParent: Bool = false,
+        seasonNumber: Int,
+        episodeNumber: Int,
+        language: String?
+    ) async throws -> [OpenSubtitlesSubtitleData] {
         if token == nil {
             try await login()
         }
-        var components = URLComponents(url: baseURL.appendingPathComponent("subtitles"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "parent_tmdb_id", value: String(parentTmdbId)),
+        var queryItems: [URLQueryItem] = []
+        if let parentTmdbId {
+            queryItems.append(URLQueryItem(name: "parent_tmdb_id", value: String(parentTmdbId)))
+        }
+        if let parentImdbId {
+            if imdbAsParent {
+                queryItems.append(URLQueryItem(name: "parent_imdb_id", value: "tt\(parentImdbId)"))
+            } else {
+                queryItems.append(URLQueryItem(name: "imdb_id", value: String(parentImdbId)))
+            }
+        }
+        if queryItems.isEmpty {
+            return []
+        }
+        queryItems.append(contentsOf: [
             URLQueryItem(name: "season_number", value: String(seasonNumber)),
             URLQueryItem(name: "episode_number", value: String(episodeNumber)),
-            URLQueryItem(name: "languages", value: language),
             URLQueryItem(name: "order_by", value: "download_count"),
             URLQueryItem(name: "order_direction", value: "desc")
-        ]
+        ])
+        if let language, !language.isEmpty {
+            queryItems.append(URLQueryItem(name: "languages", value: language))
+        }
+        var components = URLComponents(url: baseURL.appendingPathComponent("subtitles"), resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems
         guard let url = components?.url else { return [] }
         let (data, response) = try await session.data(for: request(url: url))
         try validate(response: response, data: data, requestURL: url)

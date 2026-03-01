@@ -40,6 +40,12 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
     @Published var openSubtitlesPassword: String {
         didSet { SettingsStore.set(openSubtitlesPassword, for: SettingsKey.openSubtitlesPassword) }
     }
+    @Published var openSubtitlesParentImdbIdOverride: String {
+        didSet { SettingsStore.set(openSubtitlesParentImdbIdOverride, for: SettingsKey.openSubtitlesParentImdbIdOverride) }
+    }
+    @Published var openSubtitlesSeasonOffsetInput: String {
+        didSet { SettingsStore.set(openSubtitlesSeasonOffsetInput, for: SettingsKey.openSubtitlesSeasonOffsetInput) }
+    }
 
     private var matchesById: [UUID: EpisodeMatch] = [:]
     private var fileDurations: [UUID: Double] = [:]
@@ -54,6 +60,8 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         let openSubtitlesApiKey: String
         let openSubtitlesUsername: String
         let openSubtitlesPassword: String
+        let openSubtitlesParentImdbIdOverride: String
+        let openSubtitlesSeasonOffsetInput: String
         let files: [MKVFile]
     }
 
@@ -74,6 +82,8 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         openSubtitlesApiKey = SettingsStore.get(SettingsKey.openSubtitlesApiKey)
         openSubtitlesUsername = SettingsStore.get(SettingsKey.openSubtitlesUsername)
         openSubtitlesPassword = SettingsStore.get(SettingsKey.openSubtitlesPassword)
+        openSubtitlesParentImdbIdOverride = SettingsStore.get(SettingsKey.openSubtitlesParentImdbIdOverride)
+        openSubtitlesSeasonOffsetInput = SettingsStore.get(SettingsKey.openSubtitlesSeasonOffsetInput)
         showName = SettingsStore.get(SettingsKey.lastShowName)
         seasonInput = SettingsStore.get(SettingsKey.lastSeasonInput)
         episodeRangeInput = SettingsStore.get(SettingsKey.lastEpisodeRange)
@@ -177,6 +187,8 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             openSubtitlesApiKey: openSubtitlesApiKey,
             openSubtitlesUsername: openSubtitlesUsername,
             openSubtitlesPassword: openSubtitlesPassword,
+            openSubtitlesParentImdbIdOverride: openSubtitlesParentImdbIdOverride,
+            openSubtitlesSeasonOffsetInput: openSubtitlesSeasonOffsetInput,
             files: files,
         )
 
@@ -258,6 +270,50 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
 
             log(.info, "TMDB show matched id=\(show.id) name='\(show.name)' episodes=\(season.episodes.count)")
 
+            let openSubtitlesTmdbId: Int? = show.id
+            let overrideImdbText = input.openSubtitlesParentImdbIdOverride
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let openSubtitlesImdbId: Int?
+            if overrideImdbText.isEmpty {
+                openSubtitlesImdbId = nil
+            } else {
+                let normalized = overrideImdbText.hasPrefix("tt") ? String(overrideImdbText.dropFirst(2)) : overrideImdbText
+                if let value = Int(normalized), value > 0 {
+                    openSubtitlesImdbId = value
+                } else {
+                    return failure(
+                        "OpenSubtitles IMDb ID override must be numeric or tt-prefixed (e.g. tt4093826).",
+                        logMessage: "Invalid OpenSubtitles IMDb ID override: '\(input.openSubtitlesParentImdbIdOverride)'"
+                    )
+                }
+            }
+
+            let seasonOffsetText = input.openSubtitlesSeasonOffsetInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let openSubtitlesSeasonOffset: Int
+            if seasonOffsetText.isEmpty {
+                openSubtitlesSeasonOffset = 0
+            } else if let value = Int(seasonOffsetText) {
+                openSubtitlesSeasonOffset = value
+            } else {
+                return failure(
+                    "OpenSubtitles season offset must be a whole number.",
+                    logMessage: "Invalid OpenSubtitles season offset: '\(input.openSubtitlesSeasonOffsetInput)'"
+                )
+            }
+            let openSubtitlesSeasonNumber = seasonNumber + openSubtitlesSeasonOffset
+            guard openSubtitlesSeasonNumber > 0 else {
+                return failure(
+                    "OpenSubtitles season resolved to \(openSubtitlesSeasonNumber). Adjust the season offset.",
+                    logMessage: "Invalid OpenSubtitles season after offset tmdbSeason=\(seasonNumber) offset=\(openSubtitlesSeasonOffset) resolved=\(openSubtitlesSeasonNumber)"
+                )
+            }
+            if let openSubtitlesImdbId {
+                log(.info, "OpenSubtitles override active using parentImdbId=tt\(openSubtitlesImdbId) osSeason=\(openSubtitlesSeasonNumber)")
+            } else if openSubtitlesSeasonNumber != seasonNumber {
+                log(.info, "OpenSubtitles season override active tmdbSeason=\(seasonNumber) -> osSeason=\(openSubtitlesSeasonNumber)")
+            }
+
             let expectedRangeCount = max(0, range.upperBound - range.lowerBound + 1)
             let episodesInRange = season.episodes
                 .filter { range.contains($0.episodeNumber) }
@@ -305,8 +361,9 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                     for episode in episodesInRange {
                         if let sample = try await Self.downloadEnglishSubtitleSample(
                             client: client,
-                            showId: show.id,
-                            seasonNumber: seasonNumber,
+                            tmdbShowId: openSubtitlesTmdbId,
+                            imdbShowId: openSubtitlesImdbId,
+                            seasonNumber: openSubtitlesSeasonNumber,
                             episodeNumber: episode.episodeNumber,
                             log: log
                         ) {
@@ -320,7 +377,10 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                     }
 
                     if episodeSamples.isEmpty {
-                        log(.warning, "No OpenSubtitles samples downloaded")
+                        log(
+                            .warning,
+                            "No OpenSubtitles samples downloaded (requested \(episodesInRange.count), downloaded 0). Check OpenSubtitles API credentials and whether English subtitles exist for this show/season."
+                        )
                     } else {
                         let threshold = 0.55
                         let margin: Double = 0.05
@@ -636,33 +696,91 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
 
     nonisolated private static func downloadEnglishSubtitleSample(
         client: OpenSubtitlesClient,
-        showId: Int,
+        tmdbShowId: Int?,
+        imdbShowId: Int?,
         seasonNumber: Int,
         episodeNumber: Int,
         log: (LogLevel, String) -> Void
     ) async throws -> String? {
-        let results = try await client.searchSubtitles(
-            parentTmdbId: showId,
-            seasonNumber: seasonNumber,
-            episodeNumber: episodeNumber,
-            language: "en"
-        )
-        guard let first = results.first, let fileId = first.attributes.files?.first?.fileId else {
+        let sourceTag: String = {
+            if let imdbShowId { return "imdbId=tt\(imdbShowId)" }
+            if let tmdbShowId { return "tmdbId=\(tmdbShowId)" }
+            return "no-parent-id"
+        }()
+        let cacheShowId = tmdbShowId ?? -(imdbShowId ?? 1)
+        func searchSubtitles(language: String?) async throws -> [OpenSubtitlesSubtitleData] {
+            if let imdbShowId {
+                let parentResults = try await client.searchSubtitles(
+                    parentTmdbId: nil,
+                    parentImdbId: imdbShowId,
+                    imdbAsParent: true,
+                    seasonNumber: seasonNumber,
+                    episodeNumber: episodeNumber,
+                    language: language
+                )
+                if !parentResults.isEmpty {
+                    return parentResults
+                }
+                let imdbResults = try await client.searchSubtitles(
+                    parentTmdbId: nil,
+                    parentImdbId: imdbShowId,
+                    imdbAsParent: false,
+                    seasonNumber: seasonNumber,
+                    episodeNumber: episodeNumber,
+                    language: language
+                )
+                if !imdbResults.isEmpty {
+                    log(.info, "OpenSubtitles IMDb lookup used imdb_id fallback \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
+                }
+                return imdbResults
+            }
+            return try await client.searchSubtitles(
+                parentTmdbId: tmdbShowId,
+                parentImdbId: nil,
+                seasonNumber: seasonNumber,
+                episodeNumber: episodeNumber,
+                language: language
+            )
+        }
+        let results = try await searchSubtitles(language: "en")
+        if results.isEmpty {
+            let anyLanguageResults = try await searchSubtitles(language: nil)
+            if anyLanguageResults.isEmpty {
+                log(.warning, "OpenSubtitles search returned no results \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
+            } else {
+                let languages = Array(Set(anyLanguageResults.compactMap { $0.attributes.language?.lowercased() }))
+                    .sorted()
+                    .joined(separator: ",")
+                log(.warning, "OpenSubtitles found subtitles but none matched languages=en \(sourceTag) S\(seasonNumber)E\(episodeNumber) availableLanguages=\(languages)")
+            }
+            return nil
+        }
+        guard let first = results.first else {
+            log(.warning, "OpenSubtitles search returned no English results \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
+            return nil
+        }
+        guard let fileId = first.attributes.files?.first?.fileId else {
+            log(.warning, "OpenSubtitles result missing downloadable file id \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
             return nil
         }
         if let cached = loadCachedSubtitle(
-            showId: showId,
+            showId: cacheShowId,
             seasonNumber: seasonNumber,
             episodeNumber: episodeNumber,
             fileId: fileId
         ) {
+            log(.info, "Using cached subtitle \(sourceTag) S\(seasonNumber)E\(episodeNumber) fileId=\(fileId)")
             return SubtitleMatcher.fullText(from: cached)
         }
         let data = try await client.downloadSubtitle(fileId: fileId)
-        if cacheSubtitle(data, showId: showId, seasonNumber: seasonNumber, episodeNumber: episodeNumber, fileId: fileId) {
-            log(.info, "Cached subtitle showId=\(showId) S\(seasonNumber)E\(episodeNumber) fileId=\(fileId)")
+        if cacheSubtitle(data, showId: cacheShowId, seasonNumber: seasonNumber, episodeNumber: episodeNumber, fileId: fileId) {
+            log(.info, "Cached subtitle \(sourceTag) S\(seasonNumber)E\(episodeNumber) fileId=\(fileId)")
         }
-        return SubtitleMatcher.fullText(from: data)
+        guard let sample = SubtitleMatcher.fullText(from: data) else {
+            log(.warning, "Downloaded subtitle could not be decoded as text \(sourceTag) S\(seasonNumber)E\(episodeNumber) fileId=\(fileId)")
+            return nil
+        }
+        return sample
     }
 
     nonisolated private static func cacheSubtitle(

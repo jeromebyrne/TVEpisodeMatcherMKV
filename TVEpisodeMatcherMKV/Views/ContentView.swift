@@ -150,6 +150,20 @@ struct ContentView: View {
                                 .frame(width: 60)
                                 .textFieldStyle(.roundedBorder)
                         }
+                        HStack(spacing: 12) {
+                            Text("OS IMDb ID")
+                            TextField("optional", text: $viewModel.openSubtitlesParentImdbIdOverride)
+                                .frame(width: 110)
+                                .textFieldStyle(.roundedBorder)
+                            Text("OS Season Offset")
+                            TextField("0", text: $viewModel.openSubtitlesSeasonOffsetInput)
+                                .frame(width: 60)
+                                .textFieldStyle(.roundedBorder)
+                            Text("(IMDb override takes precedence)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
 
                     HStack(spacing: 12) {
                         Text("Episode Range")

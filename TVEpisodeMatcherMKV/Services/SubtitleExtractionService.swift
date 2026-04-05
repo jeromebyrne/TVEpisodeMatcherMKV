@@ -15,15 +15,39 @@ enum SubtitleExtractionService {
         }
 
         if let codec = streamInfo.codec, !isTextSubtitleCodec(codec) {
-            if codec == "hdmv_pgs_subtitle" {
+            if isImageSubtitleCodec(codec) {
                 guard let seconvPath = resolveSubtitleEditPath(preferred: subtitleEditPath) else {
                     let details = "no seconv at preferred='\(subtitleEditPath ?? "")' cwd='\(FileManager.default.currentDirectoryPath)'"
-                    return SubtitleExtractionResult(sample: nil, error: "PGS subtitles require OCR (SubtitleEdit CLI not found: \(details)). Run tools/install_deps.sh", codec: codec)
+                    return SubtitleExtractionResult(sample: nil, error: "\(ocrDisplayName(for: codec)) subtitles require OCR (SubtitleEdit CLI not found: \(details)). Run tools/install_deps.sh", codec: codec)
                 }
                 NSLog("SubtitleEdit CLI resolved path: %@", seconvPath)
-                return extractPgsWithOcr(
+                if codec == "hdmv_pgs_subtitle" {
+                    return extractPgsWithOcr(
+                        fileURL: url,
+                        streamIndex: streamInfo.index,
+                        ffmpegPath: ffmpegPath,
+                        seconvPath: seconvPath
+                    )
+                }
+                if codec == "dvd_subtitle" {
+                    guard let ffprobePath = resolveFFprobePath() else {
+                        return SubtitleExtractionResult(sample: nil, error: "ffprobe not found (run tools/install_deps.sh)", codec: codec)
+                    }
+                    guard let tesseractPath = resolveTesseractPath() else {
+                        return SubtitleExtractionResult(sample: nil, error: "DVD subtitles require tesseract (install via Homebrew)", codec: codec)
+                    }
+                    return extractDvdSubWithOcr(
+                        fileURL: url,
+                        streamIndex: streamInfo.index,
+                        ffmpegPath: ffmpegPath,
+                        ffprobePath: ffprobePath,
+                        tesseractPath: tesseractPath
+                    )
+                }
+                return extractImageSubtitleTrackWithOcr(
                     fileURL: url,
                     streamIndex: streamInfo.index,
+                    codec: codec,
                     ffmpegPath: ffmpegPath,
                     seconvPath: seconvPath
                 )
@@ -131,6 +155,22 @@ enum SubtitleExtractionService {
         return supported.contains(codec)
     }
 
+    private static func isImageSubtitleCodec(_ codec: String) -> Bool {
+        let supported = ["hdmv_pgs_subtitle", "dvd_subtitle"]
+        return supported.contains(codec)
+    }
+
+    private static func ocrDisplayName(for codec: String) -> String {
+        switch codec {
+        case "hdmv_pgs_subtitle":
+            return "PGS"
+        case "dvd_subtitle":
+            return "DVD"
+        default:
+            return codec
+        }
+    }
+
     private static func resolveFFprobePath() -> String? {
         if let bundled = resolveBundledToolBinary(toolDirName: "ffmpeg", binaryName: "ffprobe") {
             return bundled
@@ -156,6 +196,20 @@ enum SubtitleExtractionService {
             "/opt/homebrew/bin/ffmpeg",
             "/usr/local/bin/ffmpeg",
             "/usr/bin/ffmpeg"
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        return nil
+    }
+
+    private static func resolveTesseractPath() -> String? {
+        let candidates = [
+            "/opt/homebrew/bin/tesseract",
+            "/usr/local/bin/tesseract",
+            "/usr/bin/tesseract"
         ]
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
@@ -337,6 +391,231 @@ enum SubtitleExtractionService {
             return SubtitleExtractionResult(sample: nil, error: "OCR subtitle decode failed", codec: "hdmv_pgs_subtitle")
         }
         return SubtitleExtractionResult(sample: sample, error: nil, codec: "hdmv_pgs_subtitle")
+    }
+
+    private static func extractImageSubtitleTrackWithOcr(
+        fileURL: URL,
+        streamIndex: Int,
+        codec: String,
+        ffmpegPath: String,
+        seconvPath: String
+    ) -> SubtitleExtractionResult {
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        } catch {
+            return SubtitleExtractionResult(sample: nil, error: "Temp dir failed: \(error.localizedDescription)", codec: codec)
+        }
+
+        let isolatedTrackURL = tempDir.appendingPathComponent("subtitle-track.mkv")
+        let extract = Process()
+        extract.executableURL = URL(fileURLWithPath: ffmpegPath)
+        applyBundledLibraryPathIfNeeded(to: extract, toolDirName: "ffmpeg")
+        extract.arguments = [
+            "-y",
+            "-i", fileURL.path,
+            "-map", "0:\(streamIndex)",
+            "-c", "copy",
+            isolatedTrackURL.path
+        ]
+        extract.standardOutput = Pipe()
+        extract.standardError = Pipe()
+
+        do {
+            try extract.run()
+        } catch {
+            return SubtitleExtractionResult(sample: nil, error: "ffmpeg (\(codec)) launch failed: \(error.localizedDescription)", codec: codec)
+        }
+        extract.waitUntilExit()
+        guard extract.terminationStatus == 0 else {
+            return SubtitleExtractionResult(sample: nil, error: "ffmpeg (\(codec)) exit \(extract.terminationStatus)", codec: codec)
+        }
+
+        let seconv = Process()
+        seconv.executableURL = URL(fileURLWithPath: seconvPath)
+        seconv.currentDirectoryURL = tempDir
+        seconv.arguments = [
+            isolatedTrackURL.lastPathComponent,
+            "srt",
+            "/overwrite"
+        ]
+        seconv.standardOutput = Pipe()
+        seconv.standardError = Pipe()
+
+        do {
+            try seconv.run()
+        } catch {
+            return SubtitleExtractionResult(sample: nil, error: "SubtitleEdit launch failed: \(error.localizedDescription)", codec: codec)
+        }
+        seconv.waitUntilExit()
+        guard seconv.terminationStatus == 0 else {
+            return SubtitleExtractionResult(sample: nil, error: "SubtitleEdit exit \(seconv.terminationStatus)", codec: codec)
+        }
+
+        let srtFiles = (try? FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil))?.filter { $0.pathExtension.lowercased() == "srt" } ?? []
+        guard let srtURL = srtFiles.first, let data = try? Data(contentsOf: srtURL) else {
+            return SubtitleExtractionResult(sample: nil, error: "SubtitleEdit produced no SRT", codec: codec)
+        }
+
+        let sample = SubtitleMatcher.fullText(from: data)
+        if sample == nil {
+            return SubtitleExtractionResult(sample: nil, error: "OCR subtitle decode failed", codec: codec)
+        }
+        return SubtitleExtractionResult(sample: sample, error: nil, codec: codec)
+    }
+
+    private static func extractDvdSubWithOcr(
+        fileURL: URL,
+        streamIndex: Int,
+        ffmpegPath: String,
+        ffprobePath: String,
+        tesseractPath: String
+    ) -> SubtitleExtractionResult {
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        } catch {
+            return SubtitleExtractionResult(sample: nil, error: "Temp dir failed: \(error.localizedDescription)", codec: "dvd_subtitle")
+        }
+
+        guard let duration = subtitleOverlayDuration(fileURL: fileURL, ffprobePath: ffprobePath) else {
+            return SubtitleExtractionResult(sample: nil, error: "ffprobe duration failed", codec: "dvd_subtitle")
+        }
+
+        let framePattern = tempDir.appendingPathComponent("frame-%06d.png")
+        let render = Process()
+        render.executableURL = URL(fileURLWithPath: ffmpegPath)
+        applyBundledLibraryPathIfNeeded(to: render, toolDirName: "ffmpeg")
+        render.arguments = [
+            "-y",
+            "-f", "lavfi",
+            "-i", "color=size=720x480:duration=\(String(format: "%.3f", duration)):rate=10:color=black",
+            "-i", fileURL.path,
+            "-filter_complex",
+            "[0:v][1:\(streamIndex)]overlay,mpdecimate,crop=500:120:180:330,scale=2000:-1,format=gray,lut=y='if(gt(val,80),255,0)'",
+            "-fps_mode", "vfr",
+            framePattern.path
+        ]
+        render.standardOutput = Pipe()
+        render.standardError = Pipe()
+
+        do {
+            try render.run()
+        } catch {
+            return SubtitleExtractionResult(sample: nil, error: "ffmpeg (dvd_subtitle) launch failed: \(error.localizedDescription)", codec: "dvd_subtitle")
+        }
+        render.waitUntilExit()
+        guard render.terminationStatus == 0 else {
+            return SubtitleExtractionResult(sample: nil, error: "ffmpeg (dvd_subtitle) exit \(render.terminationStatus)", codec: "dvd_subtitle")
+        }
+
+        let frameURLs = ((try? FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: [.fileSizeKey])) ?? [])
+            .filter { $0.pathExtension.lowercased() == "png" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        guard !frameURLs.isEmpty else {
+            return SubtitleExtractionResult(sample: nil, error: "No DVD subtitle frames rendered", codec: "dvd_subtitle")
+        }
+
+        var collected: [String] = []
+        var previous = ""
+        for frameURL in frameURLs.prefix(350) {
+            guard let text = ocrText(from: frameURL, tesseractPath: tesseractPath) else { continue }
+            let cleaned = cleanOcrText(text)
+            guard isUsableOcrText(cleaned) else { continue }
+            if cleaned == previous {
+                continue
+            }
+            previous = cleaned
+            collected.append(cleaned)
+            if combinedTokenCount(collected) >= 220 {
+                break
+            }
+        }
+
+        guard !collected.isEmpty else {
+            return SubtitleExtractionResult(sample: nil, error: "DVD OCR produced no usable text", codec: "dvd_subtitle")
+        }
+        let joined = collected.joined(separator: "\n")
+        guard let sample = SubtitleMatcher.fullText(from: Data(joined.utf8)), !sample.isEmpty else {
+            return SubtitleExtractionResult(sample: nil, error: "DVD OCR text normalization failed", codec: "dvd_subtitle")
+        }
+        return SubtitleExtractionResult(sample: sample, error: nil, codec: "dvd_subtitle")
+    }
+
+    private static func subtitleOverlayDuration(fileURL: URL, ffprobePath: String) -> Double? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ffprobePath)
+        applyBundledLibraryPathIfNeeded(to: process, toolDirName: "ffmpeg")
+        process.arguments = [
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            fileURL.path
+        ]
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let output, let duration = Double(output), duration > 0 else {
+            return nil
+        }
+        return duration
+    }
+
+    private static func ocrText(from imageURL: URL, tesseractPath: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: tesseractPath)
+        process.arguments = [
+            imageURL.path,
+            "stdout",
+            "--psm", "6"
+        ]
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        return String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+    }
+
+    private static func cleanOcrText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "|", with: "I")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .replacingOccurrences(of: " +", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isUsableOcrText(_ text: String) -> Bool {
+        guard text.count >= 10 else { return false }
+        let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+        let spaces = text.unicodeScalars.filter { CharacterSet.whitespaces.contains($0) }.count
+        guard letters >= 8, spaces >= 1 else { return false }
+        return Double(letters) / Double(max(text.count, 1)) >= 0.55
+    }
+
+    private static func combinedTokenCount(_ lines: [String]) -> Int {
+        lines.joined(separator: " ")
+            .split(separator: " ")
+            .count
     }
 }
 

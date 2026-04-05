@@ -177,6 +177,15 @@ struct ContentView: View {
                         .disabled(!viewModel.canMatchBySubtitles)
                         Spacer()
                     }
+                    HStack(spacing: 12) {
+                        Text("Similarity Threshold")
+                        Slider(value: $viewModel.subtitleSimilarityThreshold, in: 0.30...0.90, step: 0.01)
+                            .frame(width: 220)
+                        Text(viewModel.subtitleSimilarityThreshold, format: .number.precision(.fractionLength(2)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
 
                         Spacer(minLength: 4)
 
@@ -263,6 +272,11 @@ struct ContentView: View {
                                 Text("Console")
                                     .font(.headline)
                                 Spacer()
+                                Button("Copy All") {
+                                    copyLogsToClipboard(viewModel.logs)
+                                }
+                                .buttonStyle(PrimaryActionButtonStyle())
+                                .disabled(viewModel.logs.isEmpty)
                                 Button("Clear") {
                                     viewModel.clearLogs()
                                 }
@@ -427,6 +441,19 @@ struct ContentView: View {
         case .error:
             return .red
         }
+    }
+
+    private func copyLogsToClipboard(_ logs: [LogEntry]) {
+        let output = logs.map(formattedLogEntry).joined(separator: "\n")
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(output, forType: .string)
+    }
+
+    private func formattedLogEntry(_ entry: LogEntry) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return "\(formatter.string(from: entry.timestamp)) [\(entry.level.rawValue)] \(entry.message)"
     }
 
 }

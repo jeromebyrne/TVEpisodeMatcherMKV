@@ -46,6 +46,9 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
     @Published var openSubtitlesSeasonOffsetInput: String {
         didSet { SettingsStore.set(openSubtitlesSeasonOffsetInput, for: SettingsKey.openSubtitlesSeasonOffsetInput) }
     }
+    @Published var subtitleSimilarityThreshold: Double {
+        didSet { SettingsStore.set(subtitleSimilarityThreshold, for: SettingsKey.subtitleSimilarityThreshold) }
+    }
 
     private var matchesById: [UUID: EpisodeMatch] = [:]
     private var fileDurations: [UUID: Double] = [:]
@@ -62,6 +65,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         let openSubtitlesPassword: String
         let openSubtitlesParentImdbIdOverride: String
         let openSubtitlesSeasonOffsetInput: String
+        let subtitleSimilarityThreshold: Double
         let files: [MKVFile]
     }
 
@@ -76,6 +80,12 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         let logs: [LogEntry]
     }
 
+    private struct DownloadedSubtitleSample: Sendable {
+        let text: String
+        let title: String?
+        let fileId: Int
+    }
+
 
     init() {
         tmdbAccessToken = SettingsStore.get(SettingsKey.tmdbAccessToken)
@@ -84,6 +94,10 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         openSubtitlesPassword = SettingsStore.get(SettingsKey.openSubtitlesPassword)
         openSubtitlesParentImdbIdOverride = SettingsStore.get(SettingsKey.openSubtitlesParentImdbIdOverride)
         openSubtitlesSeasonOffsetInput = SettingsStore.get(SettingsKey.openSubtitlesSeasonOffsetInput)
+        subtitleSimilarityThreshold = min(
+            max(SettingsStore.getDouble(SettingsKey.subtitleSimilarityThreshold, defaultValue: 0.55), 0.0),
+            1.0
+        )
         showName = SettingsStore.get(SettingsKey.lastShowName)
         seasonInput = SettingsStore.get(SettingsKey.lastSeasonInput)
         episodeRangeInput = SettingsStore.get(SettingsKey.lastEpisodeRange)
@@ -189,6 +203,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             openSubtitlesPassword: openSubtitlesPassword,
             openSubtitlesParentImdbIdOverride: openSubtitlesParentImdbIdOverride,
             openSubtitlesSeasonOffsetInput: openSubtitlesSeasonOffsetInput,
+            subtitleSimilarityThreshold: subtitleSimilarityThreshold,
             files: files,
         )
 
@@ -234,7 +249,10 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             )
         }
 
-        log(.info, "Subtitle match started range='\(input.episodeRangeInput)'")
+        log(
+            .info,
+            "Subtitle match started range='\(input.episodeRangeInput)' threshold=\(String(format: "%.2f", input.subtitleSimilarityThreshold))"
+        )
 
         let trimmedShow = input.showName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedShow.isEmpty else {
@@ -358,6 +376,13 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                         username: input.openSubtitlesUsername,
                         password: input.openSubtitlesPassword
                     )
+                    let seasonSubtitleCandidates = try await Self.loadSeasonSubtitleCandidates(
+                        client: client,
+                        tmdbShowId: openSubtitlesTmdbId,
+                        imdbShowId: openSubtitlesImdbId,
+                        seasonNumber: openSubtitlesSeasonNumber,
+                        log: log
+                    )
                     for episode in episodesInRange {
                         if let sample = try await Self.downloadEnglishSubtitleSample(
                             client: client,
@@ -365,9 +390,22 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                             imdbShowId: openSubtitlesImdbId,
                             seasonNumber: openSubtitlesSeasonNumber,
                             episodeNumber: episode.episodeNumber,
+                            expectedEpisodeTitle: episode.name,
+                            seasonCandidates: seasonSubtitleCandidates,
                             log: log
                         ) {
-                            episodeSamples[episode.episodeNumber] = sample
+                            let resolvedEpisodeNumber = Self.resolveEpisodeNumber(
+                                for: sample.title,
+                                expectedEpisode: episode,
+                                episodes: episodesInRange
+                            )
+                            episodeSamples[resolvedEpisodeNumber] = sample.text
+                            if resolvedEpisodeNumber != episode.episodeNumber {
+                                log(
+                                    .warning,
+                                    "OpenSubtitles title remap requested E\(episode.episodeNumber.twoDigit) -> E\(resolvedEpisodeNumber.twoDigit) expected='\(episode.name)' source='\(sample.title ?? "unknown")' fileId=\(sample.fileId)"
+                                )
+                            }
                             if let runtime = episode.runtime {
                                 log(.info, "Episode runtime E\(episode.episodeNumber.twoDigit) minutes=\(runtime)")
                             } else {
@@ -382,8 +420,8 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                             "No OpenSubtitles samples downloaded (requested \(episodesInRange.count), downloaded 0). Check OpenSubtitles API credentials and whether English subtitles exist for this show/season."
                         )
                     } else {
-                        let threshold = 0.55
-                        let margin: Double = 0.05
+                        let threshold = min(max(input.subtitleSimilarityThreshold, 0.0), 1.0)
+                        let margin: Double = 0.02
                         let maxDurationDelta: Double = 0.10
                         let sortedFiles = fileSamples.keys.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                         let cost = Self.buildSubtitleCostMatrix(
@@ -406,6 +444,11 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                                   let episodeSample = episodeSamples[episode.episodeNumber] else {
                                 continue
                             }
+                            let fileSampleStats = SubtitleMatcher.tokenStats(for: fileSample)
+                            log(
+                                .info,
+                                "Subtitle sample stats file='\(file.name)' totalTokens=\(fileSampleStats.totalTokenCount) uniqueTokens=\(fileSampleStats.uniqueTokenCount)"
+                            )
                             let topMatches = episodesInRange.compactMap { candidate -> (episode: TMDBEpisode, score: Double)? in
                                 guard let sample = episodeSamples[candidate.episodeNumber] else { return nil }
                                 let score = SubtitleMatcher.similarity(fileSample, sample)
@@ -419,13 +462,15 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                             if !topMatchText.isEmpty {
                                 log(.info, "Top subtitle matches file='\(file.name)': \(topMatchText)")
                             }
-                            var score = SubtitleMatcher.similarity(fileSample, episodeSample)
+                            var diagnostics = SubtitleMatcher.similarityDiagnostics(fileSample, episodeSample)
+                            var score = diagnostics.cosineSimilarity
                             var chosen = episode
                             var scoreText = String(format: "%.2f", score)
                             if let best = topMatches.first, topMatches.count > 1 {
                                 let second = topMatches[topMatches.index(after: topMatches.startIndex)]
                                 let delta = best.score - second.score
-                                if delta < margin {
+                                let ambiguityFloor = max(threshold + 0.10, 0.45)
+                                if delta < margin && best.score < ambiguityFloor {
                                     log(.warning, "Subtitle match rejected (low margin) file='\(file.name)' best=E\(best.episode.episodeNumber) score=\(String(format: "%.2f", best.score)) delta=\(String(format: "%.2f", delta))")
                                     continue
                                 }
@@ -439,10 +484,16 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                                     episodeSamples: episodeSamples
                                 ) {
                                     chosen = tieBroken.episode
-                                    score = tieBroken.score
+                                    diagnostics = SubtitleMatcher.similarityDiagnostics(fileSample, episodeSamples[tieBroken.episode.episodeNumber] ?? "")
+                                    score = diagnostics.cosineSimilarity
                                     scoreText = String(format: "%.2f", score)
                                 }
                             }
+
+                            log(
+                                .info,
+                                "Subtitle comparison file='\(file.name)' episode=E\(chosen.episodeNumber.twoDigit) score=\(scoreText) word=\(String(format: "%.2f", diagnostics.wordCosineSimilarity)) bigram=\(String(format: "%.2f", diagnostics.bigramCosineSimilarity)) trigram=\(String(format: "%.2f", diagnostics.characterTrigramSimilarity)) fileTokens=\(diagnostics.leftTotalTokenCount)/\(diagnostics.leftUniqueTokenCount) episodeTokens=\(diagnostics.rightTotalTokenCount)/\(diagnostics.rightUniqueTokenCount) sharedUnique=\(diagnostics.sharedUniqueTokenCount)"
+                            )
 
                             if score < threshold {
                                 log(.warning, "Subtitle match low similarity file='\(file.name)' episode=E\(chosen.episodeNumber) score=\(scoreText)")
@@ -451,6 +502,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
 
                             let durationChecked = durations[file.id] != nil
                             var durationUsed = false
+                            var durationAccepted = false
                             if let fileDuration = durations[file.id], let runtime = chosen.runtime {
                                 durationUsed = true
                                 let runtimeSeconds = Double(runtime) * 60.0
@@ -459,6 +511,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                                     log(.warning, "Duration gate rejected file='\(file.name)' episode=E\(chosen.episodeNumber) fileMin=\(formatMinutes(fileDuration)) epMin=\(runtime) delta=\(String(format: "%.2f", delta))")
                                     continue
                                 }
+                                durationAccepted = true
                                 log(.info, "Duration gate accepted file='\(file.name)' episode=E\(chosen.episodeNumber) fileMin=\(formatMinutes(fileDuration)) epMin=\(runtime) delta=\(String(format: "%.2f", delta))")
                             } else if chosen.runtime == nil {
                                 log(.warning, "Duration gate skipped (missing runtime) file='\(file.name)' episode=E\(chosen.episodeNumber)")
@@ -466,7 +519,16 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                                 log(.warning, "Duration gate skipped (missing file duration) file='\(file.name)' episode=E\(chosen.episodeNumber)")
                             }
 
-                            let candidate = MatchCandidate(episode: chosen, score: 0.9, reasons: ["Subtitles"])
+                            let displayScore = Self.calibratedConfidenceScore(
+                                rawScore: score,
+                                acceptanceThreshold: threshold,
+                                durationAccepted: durationAccepted
+                            )
+                            var reasons = ["Subtitle similarity \(scoreText)"]
+                            if durationAccepted {
+                                reasons.append("Duration verified")
+                            }
+                            let candidate = MatchCandidate(episode: chosen, score: displayScore, reasons: reasons)
                             let status = MatchStatus(
                                 durationChecked: durationChecked,
                                 durationUsed: durationUsed,
@@ -484,6 +546,26 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                             )
                             matchedEpisodes.insert(chosen.episodeNumber)
                             highConfidenceMatches += 1
+                        }
+
+                        let fallbackThreshold = max(0.0, threshold - 0.05)
+                        if matchedEpisodes.count < episodesInRange.count {
+                            let fallbackMatches = Self.buildLowConfidenceSubtitleFallbacks(
+                                files: sortedFiles,
+                                fileSamples: fileSamples,
+                                durations: durations,
+                                episodes: episodesInRange,
+                                episodeSamples: episodeSamples,
+                                alreadyMatchedEpisodes: matchedEpisodes,
+                                alreadyMatchedFileIDs: Set(updatedMatches.keys),
+                                threshold: fallbackThreshold,
+                                maxDurationDelta: maxDurationDelta,
+                                log: log
+                            )
+                            for fallback in fallbackMatches {
+                                updatedMatches[fallback.file.id] = fallback.match
+                                matchedEpisodes.insert(fallback.match.bestCandidate?.episode.episodeNumber ?? -1)
+                            }
                         }
                     }
                 }
@@ -559,6 +641,139 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             }
         }
         return best.map { ($0.0, $0.1) }
+    }
+
+    nonisolated private static func buildLowConfidenceSubtitleFallbacks(
+        files: [MKVFile],
+        fileSamples: [MKVFile: String],
+        durations: [UUID: Double],
+        episodes: [TMDBEpisode],
+        episodeSamples: [Int: String],
+        alreadyMatchedEpisodes: Set<Int>,
+        alreadyMatchedFileIDs: Set<UUID>,
+        threshold: Double,
+        maxDurationDelta: Double,
+        log: (LogLevel, String) -> Void
+    ) -> [(file: MKVFile, match: EpisodeMatch)] {
+        struct FallbackCandidate {
+            let file: MKVFile
+            let episode: TMDBEpisode
+            let diagnostics: SubtitleMatcher.Diagnostics
+            let score: Double
+            let durationChecked: Bool
+            let durationUsed: Bool
+            let durationAccepted: Bool
+        }
+
+        let remainingEpisodes = episodes.filter { !alreadyMatchedEpisodes.contains($0.episodeNumber) }
+        guard !remainingEpisodes.isEmpty else { return [] }
+
+        var candidates: [FallbackCandidate] = []
+        for file in files where !alreadyMatchedFileIDs.contains(file.id) {
+            guard let fileSample = fileSamples[file] else { continue }
+            for episode in remainingEpisodes {
+                guard let episodeSample = episodeSamples[episode.episodeNumber] else { continue }
+                let diagnostics = SubtitleMatcher.similarityDiagnostics(fileSample, episodeSample)
+                let score = diagnostics.cosineSimilarity
+                guard score >= threshold else { continue }
+
+                let durationChecked = durations[file.id] != nil
+                var durationUsed = false
+                var durationAccepted = false
+                if let fileDuration = durations[file.id], let runtime = episode.runtime {
+                    durationUsed = true
+                    let runtimeSeconds = Double(runtime) * 60.0
+                    let delta = abs(fileDuration - runtimeSeconds) / runtimeSeconds
+                    guard delta <= maxDurationDelta else { continue }
+                    durationAccepted = true
+                }
+
+                candidates.append(
+                    FallbackCandidate(
+                        file: file,
+                        episode: episode,
+                        diagnostics: diagnostics,
+                        score: score,
+                        durationChecked: durationChecked,
+                        durationUsed: durationUsed,
+                        durationAccepted: durationAccepted
+                    )
+                )
+            }
+        }
+
+        let sorted = candidates.sorted {
+            if $0.score != $1.score { return $0.score > $1.score }
+            return $0.file.name.localizedCaseInsensitiveCompare($1.file.name) == .orderedAscending
+        }
+
+        var usedFiles: Set<UUID> = []
+        var usedEpisodes: Set<Int> = []
+        var results: [(file: MKVFile, match: EpisodeMatch)] = []
+
+        for candidate in sorted {
+            guard !usedFiles.contains(candidate.file.id),
+                  !usedEpisodes.contains(candidate.episode.episodeNumber) else { continue }
+
+            let displayScore = min(
+                0.64,
+                Self.calibratedConfidenceScore(
+                    rawScore: candidate.score,
+                    acceptanceThreshold: threshold,
+                    durationAccepted: candidate.durationAccepted
+                )
+            )
+            let scoreText = String(format: "%.2f", candidate.score)
+            var reasons = ["Low-confidence subtitle fallback \(scoreText)"]
+            if candidate.durationAccepted {
+                reasons.append("Duration verified")
+            }
+            let matchCandidate = MatchCandidate(
+                episode: candidate.episode,
+                score: displayScore,
+                reasons: reasons
+            )
+            let status = MatchStatus(
+                durationChecked: candidate.durationChecked,
+                durationUsed: candidate.durationUsed,
+                subtitlesAttempted: true,
+                subtitlesMatched: true,
+                subtitlesError: "Low-confidence subtitle fallback \(scoreText)",
+                filenamePatternsUsed: false
+            )
+            let match = EpisodeMatch(
+                file: candidate.file,
+                bestCandidate: matchCandidate,
+                candidates: [matchCandidate],
+                proposedName: Self.renameTemplate(for: candidate.episode),
+                status: status
+            )
+
+            log(
+                .warning,
+                "Low-confidence subtitle fallback accepted file='\(candidate.file.name)' episode=E\(candidate.episode.episodeNumber.twoDigit) score=\(scoreText) word=\(String(format: "%.2f", candidate.diagnostics.wordCosineSimilarity)) bigram=\(String(format: "%.2f", candidate.diagnostics.bigramCosineSimilarity)) trigram=\(String(format: "%.2f", candidate.diagnostics.characterTrigramSimilarity))"
+            )
+
+            usedFiles.insert(candidate.file.id)
+            usedEpisodes.insert(candidate.episode.episodeNumber)
+            results.append((candidate.file, match))
+        }
+
+        return results
+    }
+
+    nonisolated private static func calibratedConfidenceScore(
+        rawScore: Double,
+        acceptanceThreshold: Double,
+        durationAccepted: Bool
+    ) -> Double {
+        let normalizedThreshold = min(max(acceptanceThreshold, 0.30), 0.90)
+        let scaled = (rawScore - normalizedThreshold) / max(0.0001, 1.0 - normalizedThreshold)
+        var confidence = 0.66 + max(0, scaled) * 0.24
+        if durationAccepted {
+            confidence += 0.08
+        }
+        return min(max(confidence, 0.0), 0.98)
     }
 
 
@@ -694,21 +909,75 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         return samples
     }
 
+    nonisolated private static func loadSeasonSubtitleCandidates(
+        client: OpenSubtitlesClient,
+        tmdbShowId: Int?,
+        imdbShowId: Int?,
+        seasonNumber: Int,
+        log: (LogLevel, String) -> Void
+    ) async throws -> [OpenSubtitlesSubtitleData] {
+        let sourceTag: String = {
+            if let imdbShowId { return "imdbId=tt\(imdbShowId)" }
+            if let tmdbShowId { return "tmdbId=\(tmdbShowId)" }
+            return "no-parent-id"
+        }()
+
+        func searchSeason(language: String?) async throws -> [OpenSubtitlesSubtitleData] {
+            if let imdbShowId {
+                let parentResults = try await client.searchSubtitles(
+                    parentTmdbId: nil,
+                    parentImdbId: imdbShowId,
+                    imdbAsParent: true,
+                    seasonNumber: seasonNumber,
+                    episodeNumber: nil,
+                    language: language
+                )
+                if !parentResults.isEmpty {
+                    return parentResults
+                }
+                return try await client.searchSubtitles(
+                    parentTmdbId: nil,
+                    parentImdbId: imdbShowId,
+                    imdbAsParent: false,
+                    seasonNumber: seasonNumber,
+                    episodeNumber: nil,
+                    language: language
+                )
+            }
+            return try await client.searchSubtitles(
+                parentTmdbId: tmdbShowId,
+                parentImdbId: nil,
+                seasonNumber: seasonNumber,
+                episodeNumber: nil,
+                language: language
+            )
+        }
+
+        let candidates = try await searchSeason(language: "en")
+        if !candidates.isEmpty {
+            log(.info, "OpenSubtitles season candidate pool loaded \(sourceTag) S\(seasonNumber) count=\(candidates.count)")
+            return candidates
+        }
+        return []
+    }
+
     nonisolated private static func downloadEnglishSubtitleSample(
         client: OpenSubtitlesClient,
         tmdbShowId: Int?,
         imdbShowId: Int?,
         seasonNumber: Int,
         episodeNumber: Int,
+        expectedEpisodeTitle: String,
+        seasonCandidates: [OpenSubtitlesSubtitleData],
         log: (LogLevel, String) -> Void
-    ) async throws -> String? {
+    ) async throws -> DownloadedSubtitleSample? {
         let sourceTag: String = {
             if let imdbShowId { return "imdbId=tt\(imdbShowId)" }
             if let tmdbShowId { return "tmdbId=\(tmdbShowId)" }
             return "no-parent-id"
         }()
         let cacheShowId = tmdbShowId ?? -(imdbShowId ?? 1)
-        func searchSubtitles(language: String?) async throws -> [OpenSubtitlesSubtitleData] {
+        func searchSubtitles(language: String?, episodeNumber: Int?) async throws -> [OpenSubtitlesSubtitleData] {
             if let imdbShowId {
                 let parentResults = try await client.searchSubtitles(
                     parentTmdbId: nil,
@@ -742,9 +1011,9 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
                 language: language
             )
         }
-        let results = try await searchSubtitles(language: "en")
+        let results = try await searchSubtitles(language: "en", episodeNumber: episodeNumber)
         if results.isEmpty {
-            let anyLanguageResults = try await searchSubtitles(language: nil)
+            let anyLanguageResults = try await searchSubtitles(language: nil, episodeNumber: episodeNumber)
             if anyLanguageResults.isEmpty {
                 log(.warning, "OpenSubtitles search returned no results \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
             } else {
@@ -755,11 +1024,25 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             }
             return nil
         }
-        guard let first = results.first else {
+        guard var chosen = Self.bestSubtitleCandidate(from: results, expectedEpisodeTitle: expectedEpisodeTitle) else {
             log(.warning, "OpenSubtitles search returned no English results \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
             return nil
         }
-        guard let fileId = first.attributes.files?.first?.fileId else {
+
+        let chosenTitle = chosen.attributes.featureDetails?.title
+        let titleMismatch = !Self.isExpectedEpisodeTitle(chosenTitle, matching: expectedEpisodeTitle)
+        if titleMismatch,
+           let fallback = Self.bestSubtitleCandidate(from: seasonCandidates, expectedEpisodeTitle: expectedEpisodeTitle),
+           let fallbackTitle = fallback.attributes.featureDetails?.title,
+           Self.isExpectedEpisodeTitle(fallbackTitle, matching: expectedEpisodeTitle),
+           let fallbackFileId = fallback.attributes.files?.first?.fileId {
+            chosen = fallback
+            log(.warning, "OpenSubtitles direct lookup mismatched \(sourceTag) S\(seasonNumber)E\(episodeNumber) expected='\(expectedEpisodeTitle)' fallbackTitle='\(fallbackTitle)' fileId=\(fallbackFileId)")
+        } else if titleMismatch {
+            log(.warning, "OpenSubtitles title mismatch \(sourceTag) S\(seasonNumber)E\(episodeNumber) expected='\(expectedEpisodeTitle)' got='\(chosenTitle ?? "unknown")'")
+        }
+
+        guard let fileId = chosen.attributes.files?.first?.fileId else {
             log(.warning, "OpenSubtitles result missing downloadable file id \(sourceTag) S\(seasonNumber)E\(episodeNumber)")
             return nil
         }
@@ -770,7 +1053,8 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             fileId: fileId
         ) {
             log(.info, "Using cached subtitle \(sourceTag) S\(seasonNumber)E\(episodeNumber) fileId=\(fileId)")
-            return SubtitleMatcher.fullText(from: cached)
+            guard let text = SubtitleMatcher.fullText(from: cached) else { return nil }
+            return DownloadedSubtitleSample(text: text, title: chosen.attributes.featureDetails?.title, fileId: fileId)
         }
         let data = try await client.downloadSubtitle(fileId: fileId)
         if cacheSubtitle(data, showId: cacheShowId, seasonNumber: seasonNumber, episodeNumber: episodeNumber, fileId: fileId) {
@@ -780,7 +1064,49 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
             log(.warning, "Downloaded subtitle could not be decoded as text \(sourceTag) S\(seasonNumber)E\(episodeNumber) fileId=\(fileId)")
             return nil
         }
-        return sample
+        return DownloadedSubtitleSample(text: sample, title: chosen.attributes.featureDetails?.title, fileId: fileId)
+    }
+
+    nonisolated private static func bestSubtitleCandidate(
+        from candidates: [OpenSubtitlesSubtitleData],
+        expectedEpisodeTitle: String
+    ) -> OpenSubtitlesSubtitleData? {
+        let normalizedExpected = normalizeEpisodeTitle(expectedEpisodeTitle)
+        let scored = candidates.compactMap { candidate -> (OpenSubtitlesSubtitleData, Int)? in
+            guard let title = candidate.attributes.featureDetails?.title else { return nil }
+            let normalizedTitle = normalizeEpisodeTitle(title)
+            if normalizedTitle == normalizedExpected {
+                return (candidate, Int.max)
+            }
+            return (candidate, titleSimilarityScore(normalizedExpected, normalizedTitle))
+        }
+        return scored.max { lhs, rhs in lhs.1 < rhs.1 }?.0 ?? candidates.first
+    }
+
+    nonisolated private static func resolveEpisodeNumber(
+        for subtitleTitle: String?,
+        expectedEpisode: TMDBEpisode,
+        episodes: [TMDBEpisode]
+    ) -> Int {
+        guard let subtitleTitle else { return expectedEpisode.episodeNumber }
+        let normalizedSubtitleTitle = normalizeEpisodeTitle(subtitleTitle)
+        if let exact = episodes.first(where: { normalizeEpisodeTitle($0.name) == normalizedSubtitleTitle }) {
+            return exact.episodeNumber
+        }
+        return expectedEpisode.episodeNumber
+    }
+
+    nonisolated private static func isExpectedEpisodeTitle(_ actualTitle: String?, matching expectedTitle: String) -> Bool {
+        guard let actualTitle else { return false }
+        return normalizeEpisodeTitle(actualTitle) == normalizeEpisodeTitle(expectedTitle)
+    }
+
+    nonisolated private static func normalizeEpisodeTitle(_ title: String) -> String {
+        title.normalizedTokenString
+    }
+
+    nonisolated private static func titleSimilarityScore(_ expectedTitle: String, _ actualTitle: String) -> Int {
+        expectedTitle.tokenOverlapScore(with: actualTitle)
     }
 
     nonisolated private static func cacheSubtitle(

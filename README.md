@@ -2,8 +2,8 @@
 
 A macOS app that helps you correctly tag MKV TV episodes by matching them
 against online metadata and subtitles, including OCR (optical character
-recognition—converting subtitle images into text) for PGS subtitles when
-needed. The primary use case is when you rip a TV season from Blu-ray and
+recognition converting subtitle images into text) for image-based subtitles
+such as PGS and DVD/VobSub when needed. The primary use case is when you rip a TV season from Blu-ray and
 the episode files are obfuscated or out of order. You provide the show
 name and season number, and the app matches each file against TMDB and
 OpenSubtitles to determine the correct episode numbers and names.
@@ -13,8 +13,8 @@ include multiple audio and subtitle tracks. The app scans MKV files,
 parses filenames for hints, fetches season/episode metadata from TMDB,
 and then uses a combination of subtitle text similarity and
 timing/duration checks (via `ffprobe`) to map each file to the most likely
-episode. For embedded PGS subtitles (image-based subtitles), it invokes
-SubtitleEdit CLI (`seconv`) to OCR them into text before scoring. If
+episode. For embedded image-based subtitles such as PGS and DVD/VobSub, it
+invokes SubtitleEdit CLI (`seconv`) to OCR them into text before scoring. If
 embedded subtitles are missing or insufficient, it can compare against
 downloaded subtitle samples from OpenSubtitles.
 
@@ -22,6 +22,7 @@ downloaded subtitle samples from OpenSubtitles.
 
 - MKV (Matroska): A multimedia container format that can hold video, audio, and multiple subtitle tracks.
 - PGS (Presentation Graphic Stream): Image-based subtitles often found on Blu-ray sources.
+- DVD/VobSub: Image-based subtitles commonly found on DVD sources.
 - OCR (Optical Character Recognition): Converts subtitle images into selectable text.
 - TMDB: The Movie Database API used for show and episode metadata.
 - OpenSubtitles: Subtitle database used for downloading reference subtitle samples.
@@ -34,6 +35,7 @@ arm64 only). The `tools/` directory is gitignored and populated locally.
 
 Tools:
 - `ffmpeg` (includes `ffprobe`)
+- `tesseract` (used to OCR rendered DVD/VobSub subtitle images)
 - `seconv` (SubtitleEdit CLI, used for OCR of PGS subtitles)
 
 ### Install tools (recommended)
@@ -45,6 +47,7 @@ tools/install_deps.sh
 ```
 
 This installs `ffmpeg` via Homebrew and copies `ffmpeg/ffprobe` plus required `.dylib` files into `tools/ffmpeg/`.
+DVD/VobSub OCR also requires `tesseract`, which the app looks up in standard system paths.
 For `seconv` (SubtitleEdit CLI), the script builds from source using `dotnet` (installed via Homebrew) unless you provide:
 - `SECONV_ZIP=/path/to/seconv.zip`
 - `SECONV_DIR=/path/to/seconv_dir`
@@ -61,6 +64,7 @@ If dependencies are missing at runtime, error messages will suggest running `too
 - Homebrew permissions errors: run `brew doctor` and fix ownership/permissions for your Homebrew prefix and cache.
 - `seconv` build warnings: the SubtitleEdit CLI build may emit .NET nullability warnings; these are expected.
 - PGS OCR not working: confirm `tools/seconv/seconv` exists, then clean/rebuild so it is bundled into the app.
+- DVD/VobSub OCR not working: confirm `tesseract` is installed, e.g. `brew install tesseract`.
 
 ## Caching Details
 
@@ -83,8 +87,10 @@ If you want a clean slate, clear the app’s `UserDefaults` and delete the cache
 
 ## seconv (SubtitleEdit CLI)
 
-`seconv` is used to OCR PGS subtitles. If `tools/seconv/seconv` exists at build time, the app bundles it into the app resources automatically.
+`seconv` is used to OCR image-based subtitles such as PGS. If `tools/seconv/seconv` exists at build time, the app bundles it into the app resources automatically.
 `tools/seconv/` is populated by `tools/install_deps.sh` (it is not committed to git).
+
+DVD/VobSub OCR uses `ffmpeg` to render subtitle images and `tesseract` to OCR them, expecting `tesseract` in a standard path such as `/opt/homebrew/bin/tesseract`.
 
 The app will look for `seconv` in this order:
 

@@ -47,12 +47,15 @@ chmod -R u+w "$ffmpeg_dir" "$ffmpeg_lib_dir" "$seconv_dir" 2>/dev/null || true
 
 ffmpeg_bin="$(command -v ffmpeg || true)"
 ffprobe_bin="$(command -v ffprobe || true)"
+tesseract_bin="$(command -v tesseract || true)"
 
-if [[ -z "$ffmpeg_bin" || -z "$ffprobe_bin" ]]; then
+if [[ -z "$ffmpeg_bin" || -z "$ffprobe_bin" || -z "$tesseract_bin" ]]; then
   ensure_brew_writable
   brew install ffmpeg
+  brew install tesseract
   ffmpeg_bin="$(command -v ffmpeg || true)"
   ffprobe_bin="$(command -v ffprobe || true)"
+  tesseract_bin="$(command -v tesseract || true)"
 fi
 
 ffmpeg_prefix="$(brew --prefix ffmpeg 2>/dev/null || true)"
@@ -66,8 +69,8 @@ if [[ -n "$ffmpeg_prefix" ]]; then
   fi
 fi
 
-if [[ -z "$ffmpeg_bin" || -z "$ffprobe_bin" ]]; then
-  echo "ffmpeg/ffprobe not found after brew install." >&2
+if [[ -z "$ffmpeg_bin" || -z "$ffprobe_bin" || -z "$tesseract_bin" ]]; then
+  echo "ffmpeg/ffprobe/tesseract not found after brew install." >&2
   exit 1
 fi
 

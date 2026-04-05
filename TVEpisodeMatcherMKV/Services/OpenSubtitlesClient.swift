@@ -54,7 +54,7 @@ final class OpenSubtitlesClient {
         parentImdbId: Int? = nil,
         imdbAsParent: Bool = false,
         seasonNumber: Int,
-        episodeNumber: Int,
+        episodeNumber: Int? = nil,
         language: String?
     ) async throws -> [OpenSubtitlesSubtitleData] {
         if token == nil {
@@ -76,10 +76,12 @@ final class OpenSubtitlesClient {
         }
         queryItems.append(contentsOf: [
             URLQueryItem(name: "season_number", value: String(seasonNumber)),
-            URLQueryItem(name: "episode_number", value: String(episodeNumber)),
             URLQueryItem(name: "order_by", value: "download_count"),
             URLQueryItem(name: "order_direction", value: "desc")
         ])
+        if let episodeNumber {
+            queryItems.append(URLQueryItem(name: "episode_number", value: String(episodeNumber)))
+        }
         if let language, !language.isEmpty {
             queryItems.append(URLQueryItem(name: "languages", value: language))
         }

@@ -179,7 +179,7 @@ struct ContentView: View {
                     }
                     HStack(spacing: 12) {
                         Text("Similarity Threshold")
-                        Slider(value: $viewModel.subtitleSimilarityThreshold, in: 0.30...0.90, step: 0.01)
+                        Slider(value: $viewModel.subtitleSimilarityThreshold, in: 0.20...0.90, step: 0.01)
                             .frame(width: 220)
                         Text(viewModel.subtitleSimilarityThreshold, format: .number.precision(.fractionLength(2)))
                             .font(.caption)

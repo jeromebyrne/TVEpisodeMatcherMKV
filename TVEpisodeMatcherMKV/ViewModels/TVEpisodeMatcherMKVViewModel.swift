@@ -767,7 +767,7 @@ final class TVEpisodeMatcherMKVViewModel: ObservableObject {
         acceptanceThreshold: Double,
         durationAccepted: Bool
     ) -> Double {
-        let normalizedThreshold = min(max(acceptanceThreshold, 0.30), 0.90)
+        let normalizedThreshold = min(max(acceptanceThreshold, 0.20), 0.90)
         let scaled = (rawScore - normalizedThreshold) / max(0.0001, 1.0 - normalizedThreshold)
         var confidence = 0.66 + max(0, scaled) * 0.24
         if durationAccepted {
